@@ -21,19 +21,19 @@ for attempt in range(18):
         version = json.loads(fetch('version.json'))
         assert version['commit'] == COMMIT, version
         html = fetch('').decode()
-        assert './replay-vr-v3.webmanifest' in html
-        assert html.count('./icons/ci-vr-v3-192.png') == 2, 'favicon and Apple touch icon'
-        for name in ['replay-vr-v3.webmanifest', 'replay-vr.webmanifest', 'manifest.webmanifest']:
+        assert './replay-vr-v4.webmanifest' in html
+        assert html.count('./icons/ci-vr-v4-192.png') == 2, 'favicon and Apple touch icon'
+        for name in ['replay-vr-v4.webmanifest', 'replay-vr.webmanifest', 'manifest.webmanifest']:
             manifest = json.loads(fetch(name))
             assert manifest == json.loads((ROOT / 'public' / name).read_text())
-            assert manifest['start_url'] == './?v=ci-vr3.1'
+            assert manifest['start_url'] == './?v=ci-vr4'
             for icon in manifest['icons']:
                 data = fetch(icon['src'])
                 assert data == (ROOT / 'public' / icon['src']).read_bytes(), icon['src']
         scripts = re.findall(r'<script[^>]*src="([^"]+)"', html)
         assert scripts
         js = fetch(scripts[0].removeprefix('./')).decode()
-        assert all(text in js for text in ['Running Camera', 'Record &amp; Review', 'livePreview', 'ci-vr-v3-192.png'])
+        assert all(text in js for text in ['Running Camera', 'Record &amp; Review', 'livePreview', 'ci-vr-v4-192.png'])
         print('PASS: live Pages commit', COMMIT)
         print('PASS: live HTML, application bundle, three manifests, launch URL, favicon, Apple touch icon, and both CI/VR icon sizes match this commit.')
         for icon in manifest['icons']:
