@@ -1,8 +1,10 @@
 export class ReplayBuffer {
-  constructor(seconds = 90, maxBytes = 64 * 1024 * 1024) { this.seconds = seconds; this.maxBytes = maxBytes; this.frames = []; this.bytes = 0; }
+  constructor(seconds = 90, maxBytes = 64 * 1024 * 1024) { this.seconds = seconds; this.maxBytes = maxBytes; this.frames = []; this.bytes = 0; this.retainAll = false; }
   add(time, blob) {
+    if (this.retainAll && this.bytes + blob.size > this.maxBytes) return false;
     this.frames.push({time, blob}); this.bytes += blob.size;
     while (this.frames.length > 1 && (time - this.frames[0].time > this.seconds || this.bytes > this.maxBytes)) this.bytes -= this.frames.shift().blob.size;
+    return true;
   }
   at(time) {
     let low = 0, high = this.frames.length - 1;

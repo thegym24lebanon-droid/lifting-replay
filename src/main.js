@@ -1,113 +1,128 @@
 import './style.css';
 import { ReplayBuffer, delayedTime } from './buffer.js';
-const $ = (id) => document.getElementById(id);
+const $ = id => document.getElementById(id);
 let saved = {}; try { saved = JSON.parse(localStorage.getItem('lifting-settings') || '{}'); } catch {}
 const settings = {delay: Math.max(5, Math.min(30, Number(saved.delay) || 10)), facing: saved.facing === 'user' ? 'user' : 'environment'};
 const persist = () => { try { localStorage.setItem('lifting-settings', JSON.stringify(settings)); } catch {} };
 $('app').innerHTML = `
-<header><a class="brand" href="./"><img class="brand-icon" src="./icons/ci-vr-192.png" alt="CI VR"><span>LIFTING<span class="accent">REPLAY</span></span></a><span class="tag">YOUR NEXT REP, IN REVIEW</span></header>
-<main><section class="intro"><div><p class="eyebrow">TRAIN. WATCH. ADJUST.</p><h1>See your lift.<br><span>Find your next improvement.</span></h1><p class="muted">A delayed replay for your phone and mirrored TV.</p></div><div class="intro-actions"><button id="install" class="secondary">＋ Add to home screen</button><button id="tvHelp" class="secondary">▣ Connect your TV</button></div></section>
-<section class="workspace"><div class="viewer" id="viewer"><canvas id="replay" aria-label="Delayed camera replay"></canvas><div id="empty"><span class="camera-icon">◎</span><h2>Your replay starts here</h2><p>Place your phone where it can see the whole lift.</p><p>Start the camera, then mirror this screen to your TV.</p></div><div class="viewer-top"><span id="badge">CAMERA OFF</span><button id="fullscreen" class="glass">⛶ Full screen</button></div><div class="viewer-bottom"><span id="status" role="status" aria-live="polite">Ready when you are</span><span id="bufferLabel">90s rolling buffer</span></div><video id="camera" muted playsinline autoplay></video></div>
-<aside><p class="eyebrow">CAMERA CONTROLS</p><h2>Set up your replay</h2><button id="start" class="primary">● Start camera</button><button id="stop" class="secondary" disabled>Stop camera</button><label class="field">Camera<select id="facing"><option value="environment">Rear camera</option><option value="user">Front camera</option></select></label><div class="delay-title"><label for="delay">Replay delay</label><strong id="delayValue"></strong></div><input id="delay" type="range" min="5" max="30" step="1"><div class="range-labels"><span>5 seconds</span><span>30 seconds</span></div><p class="hint">Keep this page open and your screen awake. The replay has no audio.</p><div class="notice"><span class="dot"></span><div><strong>Private by design</strong><p>Camera frames stay on this device. They disappear when you leave.</p></div></div></aside></section>
-<section class="transport"><div class="timeline-title"><strong id="mode">Delayed live replay</strong><span id="position">0:00 / 0:00</span></div><input id="scrub" aria-label="Replay timeline" type="range" min="0" max="0" value="0" step="0.05" disabled><div class="transport-row"><div class="buttons"><button id="back" class="secondary" disabled>↶ 5s</button><button id="pause" class="primary" disabled>Pause</button><button id="forward" class="secondary" disabled>5s ↷</button><button id="lift" class="secondary" disabled>↺ Replay last 15s</button></div><div class="speed"><label for="speed">Speed</label><select id="speed"><option value="1">1× Normal</option><option value="0.5">0.5× Slow</option><option value="0.25">0.25× Slow</option></select><button id="live" class="secondary" disabled>Return to delay</button></div></div></section>
-<p id="error" role="alert" hidden></p><footer><span>Made for the moments between sets.</span><span>Phone → Screen mirroring → TV</span></footer>
-<dialog id="help"><h2>Watch on your TV</h2><p>On your Galaxy, open Quick Settings → <strong>Smart View</strong>, select your TV, and accept the connection on the TV. Return here and use full screen.</p><p>Your j5create receiver must be in its Android / Miracast mode and support Samsung Smart View. Check the model’s instructions; do not assume every j5create 4K receiver uses the same mode. A Google Cast-only receiver may not appear in Smart View. A Vizio SmartCast label alone does not guarantee Smart View compatibility.</p><p>If Smart View cannot find the receiver, use a compatible Miracast receiver or a supported USB-C to HDMI connection. This app does not initiate Google Cast or upload video to the TV.</p><p>Camera access needs a trusted HTTPS address on your phone. Keep the app foregrounded. TV mirroring adds its own latency beyond your selected delay.</p><button id="closeHelp" class="primary">Got it</button></dialog></main>`;
+<header><a class="brand" href="./"><img src="./icons/ci-vr-v3-192.png" alt="CI VR"><span>Lifting Replay</span></a><div class="header-actions"><button id="tvHelp">Connect to TV</button><button id="install" aria-label="Add to home screen">Install</button></div></header>
+<main><div class="setup"><label>Mode<select id="captureMode"><option value="running">Running Camera</option><option value="record">Record &amp; Review</option></select></label><label>Camera<select id="facing"><option value="environment">Rear camera</option><option value="user">Front camera</option></select></label><label class="delay-control"><span><span id="delayTitle">Replay delay</span> <strong id="delayValue"></strong></span><input id="delay" aria-label="Delay in seconds" type="range" min="5" max="30" step="1"></label></div>
+<section class="viewer" id="viewer"><canvas id="replay" aria-label="Replay"></canvas><div id="empty">Start camera to see your framing</div><div id="livePreview" hidden><video id="camera" muted playsinline autoplay></video><span>LIVE</span></div><div class="viewer-top"><span id="badge">CAMERA OFF</span><button id="fullscreen">Full screen</button></div><div class="viewer-bottom"><span id="status" role="status">Ready</span><button id="screenStop" hidden>Stop</button></div></section>
+<div class="capture-controls"><button id="start" class="primary">Start camera</button><button id="stop" disabled>Stop</button><span id="storage">Up to 90s rolling review</span></div>
+<section class="transport"><div class="timeline-title"><span id="reviewLabel">Replay</span><span id="position">0:00 / 0:00</span></div><input id="scrub" aria-label="Replay timeline" type="range" min="0" max="0" value="0" step="0.01" disabled><div class="transport-row"><button id="back" disabled>−5s</button><button id="pause" class="primary" disabled>Play</button><button id="forward" disabled>+5s</button><label>Speed<select id="speed" disabled><option value="1">1×</option><option value="0.5">0.5×</option><option value="0.25">0.25×</option></select></label><button id="live" disabled>Return to delay</button></div></section><p id="error" role="alert" hidden></p>
+<dialog id="help"><h2>Connect to TV</h2><p>On your Galaxy, open Quick Settings → <strong>Smart View</strong>, select your ScreenCast receiver, and accept the connection. Return here and use Full screen.</p><p>The phone and TV show the same screen, including the LIVE preview. ScreenCast adds its own latency beyond the selected delay.</p><p>Keep this page open and the screen awake. If the receiver is missing, check its Android / Miracast mode and compatibility, or use a compatible USB-C to HDMI connection.</p><button id="closeHelp" class="primary">Done</button></dialog>
+<dialog id="installHelp"><h2>Add to home screen</h2><p>Open this link in Chrome. Remove the old Lifting Replay shortcut, then tap Chrome’s ⋮ menu → Add to home screen → Install or Create shortcut. Leave your separate CI program in place.</p><p>Internet is required to open the app. Footage is temporary and clears on reload.</p><button id="closeInstall" class="primary">Done</button></dialog></main>`;
 $('delay').value = settings.delay; $('delayValue').textContent = `${settings.delay}s`; $('facing').value = settings.facing;
-const buffer = new ReplayBuffer();
-let stream, timer, running = false, busy = false, drawing = false, lastFrame, origin = 0, playhead = 0, follow = true, paused = false, speed = 1, previousTick = 0, wake;
+const buffer = new ReplayBuffer(90, 96 * 1024 * 1024);
+let mode = 'running', stream, timer, running = false, starting = false, busy = false, drawing = false, lastFrame, origin = 0, playhead = 0, follow = true, paused = true, speed = 1, previousTick = 0, wake, session = 0, countdown = null;
 const capture = document.createElement('canvas');
 const seconds = () => (performance.now() - origin) / 1000;
-const fmt = (n) => `${Math.floor(Math.max(0,n)/60)}:${String(Math.floor(Math.max(0,n)%60)).padStart(2,'0')}`;
+const fmt = n => `${Math.floor(Math.max(0,n)/60)}:${String(Math.floor(Math.max(0,n)%60)).padStart(2,'0')}`;
 function error(message) { $('error').textContent = message; $('error').hidden = !message; }
-function controls(enabled) { for (const id of ['back','pause','forward','lift','live','scrub']) $(id).disabled = !enabled; }
+function controls(enabled) { for (const id of ['back','pause','forward','scrub','speed']) $(id).disabled = !enabled; $('live').disabled = !enabled || !running || mode !== 'running'; }
+function layout(warming = false) {
+  $('livePreview').hidden = !running;
+  $('viewer').classList.toggle('live-main', running && (mode === 'record' || warming));
+  $('screenStop').hidden = !running;
+  $('live').hidden = mode === 'record';
+}
 async function sample() {
   if (!running || busy || !$('camera').videoWidth) return;
-  busy = true; const sessionOrigin = origin;
+  busy = true; const token = session;
   try {
-    const video = $('camera'); const w = Math.min(640, video.videoWidth); capture.width = w; capture.height = Math.round(video.videoHeight * w / video.videoWidth);
+    const video = $('camera'), w = Math.min(960, video.videoWidth);
+    capture.width = w; capture.height = Math.round(video.videoHeight * w / video.videoWidth);
     capture.getContext('2d').drawImage(video,0,0,capture.width,capture.height);
-    const time = seconds(); const blob = await new Promise(resolve => capture.toBlob(resolve,'image/jpeg',0.7));
-    if (blob && running && origin === sessionOrigin) buffer.add(time,blob);
-  } finally { busy = false; }
+    const time = seconds(), blob = await new Promise(resolve => capture.toBlob(resolve,'image/jpeg',0.72));
+    if (blob && running && token === session) {
+      if (!buffer.add(time,blob)) { stop(false); error('Recording stopped at the 128 MiB memory limit. Your complete captured footage is ready to review. Record next clears this clip.'); }
+      else if (mode === 'running' && time > settings.delay && buffer.first > time - settings.delay + 0.5) { stop(false); error('The selected delay exceeded available memory. Capture stopped safely; retained footage is ready to review. Try a shorter delay.'); }
+    }
+  } catch { if (token === session) { stop(false); error('Camera frames could not be captured. Retained footage is available; try starting again.'); } }
+  finally { busy = false; }
 }
 async function start() {
-  if (running) return;
-  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) { error('Camera access requires HTTPS on your phone. Open this app from a trusted HTTPS host; a phone cannot use an HTTP LAN address for camera access.'); return; }
-  $('start').disabled = true; error('');
+  if (running || starting) return;
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) { error('Camera access requires a trusted HTTPS link. Open this app in Chrome.'); return; }
+  const token = ++session; starting = true; $('start').disabled = true; $('captureMode').disabled = true; $('facing').disabled = true; error('');
   try {
-    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:settings.facing},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:15,max:15}},audio:false});
-    $('camera').srcObject = stream; await $('camera').play();
-    buffer.clear(); origin = performance.now(); previousTick = origin; playhead = 0; follow = true; paused = false; speed = 1; $('speed').value = '1'; lastFrame = null;
-    running = true; $('empty').hidden = true; $('stop').disabled = false; $('facing').disabled = true; $('start').textContent = '● Camera running'; controls(false); $('pause').textContent = 'Pause';
-    stream.getVideoTracks()[0].addEventListener('ended',() => { if(running) { stop(); error('The camera stopped. Reopen the page in the foreground and start it again.'); } });
+    const acquired = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:settings.facing},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:15,max:15}},audio:false});
+    if (token !== session) { acquired.getTracks().forEach(t=>t.stop()); return; }
+    stream = acquired; $('camera').srcObject = stream;
+    await $('camera').play();
+    if (token !== session) return;
+    buffer.clear(); buffer.seconds = mode === 'running' ? 90 : Infinity; buffer.maxBytes = (mode === 'running' ? 96 : 128) * 1024 * 1024; buffer.retainAll = mode === 'record';
+    countdown = null; origin = performance.now(); previousTick = origin; playhead = 0; follow = mode === 'running'; paused = false; speed = 1; $('speed').value = '1'; lastFrame = null;
+    $('replay').getContext('2d').clearRect(0,0,$('replay').width,$('replay').height);
+    running = true; $('empty').hidden = true; $('stop').disabled = false; $('start').textContent = mode === 'record' ? 'Recording' : 'Camera running'; controls(false); layout(true);
+    stream.getVideoTracks()[0].addEventListener('ended',() => { if(running && token === session) { stop(false); error('Camera connection ended. Retained footage is ready to review.'); } });
     timer = setInterval(sample, 1000/15); await sample();
-    try { wake = await navigator.wakeLock?.request('screen'); } catch {}
-  } catch (e) { stream?.getTracks().forEach(t=>t.stop()); stream = null; $('start').disabled = false; error(e.name === 'NotAllowedError' ? 'Camera permission was denied. Allow camera access in your browser settings, then try again.' : `Could not start the camera: ${e.message}`); }
+    try { const lock = await navigator.wakeLock?.request('screen'); if (running && token === session) wake = lock; else lock?.release().catch(()=>{}); } catch {}
+  } catch (e) {
+    if (token === session) { stop(false); error(e.name === 'NotAllowedError' ? 'Camera permission was denied. Allow camera access in Chrome settings, then try again.' : `Could not start camera: ${e.message}`); }
+  } finally { if (token === session) { starting = false; $('start').disabled = running; $('captureMode').disabled = running; $('facing').disabled = running; } }
 }
-function stop() {
-  running = false; clearInterval(timer); stream?.getTracks().forEach(t=>t.stop()); stream = null; $('camera').srcObject = null;
-  wake?.release().catch(()=>{}); wake = null; follow = false; paused = true; $('pause').textContent = 'Play'; $('stop').disabled = true; $('start').disabled = false; $('start').textContent = '● Start new session'; $('facing').disabled = false;
+function stop(autoReplay = true) {
+  const wasRunning = running, stoppedAt = performance.now();
+  ++session; starting = false; running = false; clearInterval(timer); stream?.getTracks().forEach(t=>t.stop()); stream = null; $('camera').srcObject = null;
+  wake?.release().catch(()=>{}); wake = null; follow = false; paused = true;
+  countdown = autoReplay && wasRunning && mode === 'record' && buffer.frames.length ? stoppedAt + settings.delay * 1000 : null;
+  if (wasRunning && mode === 'record') playhead = buffer.first;
+  $('stop').disabled = true; $('start').disabled = false; $('start').textContent = mode === 'record' ? (buffer.frames.length ? 'Record next' : 'Start recording') : 'Start camera'; $('facing').disabled = false; $('captureMode').disabled = false;
+  if (!buffer.frames.length) { $('empty').hidden = false; $('empty').textContent = 'No footage captured · start again'; }
+  controls(buffer.frames.length > 0); layout();
 }
-function manual() { follow = false; }
+function manual() { follow = false; countdown = null; }
 function seek(value) { manual(); playhead = Math.max(buffer.first, Math.min(buffer.last, value)); }
 async function draw(frame) {
   if (!frame || drawing || frame === lastFrame) return;
-  drawing = true;
-  try { const bitmap = await createImageBitmap(frame.blob); const canvas = $('replay'); canvas.width = bitmap.width; canvas.height = bitmap.height; canvas.getContext('2d').drawImage(bitmap,0,0); bitmap.close(); lastFrame = frame; }
-  catch { error('This browser could not render camera frames. Try current Chrome on your Galaxy.'); }
+  drawing = true; const token = session;
+  try {
+    const bitmap = await createImageBitmap(frame.blob);
+    if (token === session) { const canvas = $('replay'); canvas.width = bitmap.width; canvas.height = bitmap.height; canvas.getContext('2d').drawImage(bitmap,0,0); lastFrame = frame; }
+    bitmap.close();
+  } catch { error('Replay rendering failed. Try current Chrome on your Galaxy.'); }
   finally { drawing = false; }
 }
 function tick(now) {
   const dt = Math.min(0.25,(now - (previousTick || now))/1000); previousTick = now;
+  const warming = running && mode === 'running' && follow && seconds() < settings.delay;
+  if (countdown !== null && now >= countdown) { countdown = null; playhead = buffer.first; paused = false; }
   if (buffer.frames.length) {
-    const elapsed = running ? seconds() : buffer.last;
-    const warming = running && follow && elapsed < settings.delay;
-    if (follow && running) playhead = delayedTime(elapsed,settings.delay,buffer.first);
-    else if (!paused) { playhead = Math.min(buffer.last,playhead + dt * speed); if(!running && playhead >= buffer.last) { paused = true; $('pause').textContent = 'Play'; } }
+    if (follow && running) playhead = delayedTime(seconds(),settings.delay,buffer.first);
+    else if (!paused && !(running && mode === 'record')) { playhead = Math.min(buffer.last,playhead + dt * speed); if(!running && playhead >= buffer.last) paused = true; }
     playhead = Math.max(buffer.first,Math.min(buffer.last,playhead));
-    if(!warming) draw(buffer.at(playhead));
-    controls(!warming); $('scrub').min = buffer.first; $('scrub').max = buffer.last; $('scrub').value = playhead;
-    $('position').textContent = `${fmt(playhead)} / ${fmt(buffer.last)}`;
-    $('badge').textContent = running ? (warming ? 'BUFFERING' : 'CAMERA ON') : 'CAMERA STOPPED';
-    $('mode').textContent = follow ? 'Delayed live replay' : paused ? 'Replay paused' : `Replay · ${speed}×`;
-    $('status').textContent = warming ? `Replay starts in ${Math.ceil(settings.delay-elapsed)}s` : follow ? `${settings.delay}s behind camera` : paused ? 'Paused · scrub to review your lift' : 'Reviewing your lift';
-    $('bufferLabel').textContent = `${Math.round(buffer.last-buffer.first)}s available`;
+    if(!warming && !(running && mode === 'record')) draw(buffer.at(playhead));
+    controls(!warming && !(running && mode === 'record'));
+    $('scrub').min = buffer.first; $('scrub').max = buffer.last; $('scrub').value = playhead;
+    $('position').textContent = `${fmt(playhead-buffer.first)} / ${fmt(buffer.last-buffer.first)}`;
   }
+  layout(warming);
+  $('pause').textContent = paused ? 'Play' : 'Pause';
+  $('badge').textContent = running ? (mode === 'record' ? 'RECORDING' : warming ? 'LIVE · BUFFERING' : 'DELAYED REPLAY') : buffer.frames.length ? 'REVIEW' : 'CAMERA OFF';
+  $('status').textContent = countdown !== null ? `Auto-replay in ${Math.max(1,Math.ceil((countdown-now)/1000))}s · review now to cancel` : running && mode === 'record' ? `Recording ${fmt(seconds())} · tap Stop to review` : warming ? `Delayed replay in ${Math.ceil(settings.delay-seconds())}s` : running && follow ? `${settings.delay}s behind camera` : buffer.frames.length ? paused ? 'Paused' : `Playing · ${speed}×` : 'Ready';
+  $('reviewLabel').textContent = follow && running ? 'Delayed replay' : 'Review';
+  $('storage').textContent = mode === 'record' ? `${Math.ceil(buffer.bytes/1024/1024)} / 128 MiB · ${running ? 'Stop when finished' : 'Clip clears on Record next or reload'}` : `${Math.round(buffer.last-buffer.first)}s / up to 90s rolling review`;
   requestAnimationFrame(tick);
 }
-$('start').onclick = start; $('stop').onclick = stop;
-$('delay').oninput = () => { settings.delay = Number($('delay').value); $('delayValue').textContent = `${settings.delay}s`; persist(); };
+$('start').onclick = start; $('stop').onclick = () => stop(); $('screenStop').onclick = () => stop();
+$('captureMode').onchange = () => { mode = $('captureMode').value; countdown = null; $('delayTitle').textContent = mode === 'record' ? 'Replay after Stop' : 'Replay delay'; $('start').textContent = mode === 'record' ? (buffer.frames.length ? 'Record next' : 'Start recording') : 'Start camera'; layout(); };
+$('delay').oninput = () => { settings.delay = Math.max(5,Math.min(30,Number($('delay').value))); $('delayValue').textContent = `${settings.delay}s`; persist(); };
 $('facing').onchange = () => { settings.facing = $('facing').value; persist(); };
-$('scrub').oninput = () => { seek(Number($('scrub').value)); paused = true; $('pause').textContent = 'Play'; };
+$('scrub').oninput = () => { seek(Number($('scrub').value)); paused = true; };
 $('back').onclick = () => seek(playhead-5); $('forward').onclick = () => seek(playhead+5);
-$('pause').onclick = () => { manual(); paused = !paused; $('pause').textContent = paused ? 'Play' : 'Pause'; };
-$('lift').onclick = () => { seek(buffer.last-15); paused = false; $('pause').textContent = 'Pause'; };
+$('pause').onclick = () => { manual(); if(paused && playhead >= buffer.last) playhead = buffer.first; paused = !paused; };
 $('speed').onchange = () => { speed = Number($('speed').value); manual(); };
-$('live').onclick = () => { if (!running) { error('Start the camera to return to a delayed live replay.'); return; } follow = true; paused = false; speed = 1; $('speed').value = '1'; $('pause').textContent = 'Pause'; };
-$('fullscreen').onclick = async () => { try { if(document.fullscreenElement) await document.exitFullscreen(); else await $('viewer').requestFullscreen(); } catch { error('Full screen is unavailable in this browser. Rotate your phone to landscape for a larger replay.'); } };
+$('live').onclick = () => { if (running && mode === 'running') { follow = true; paused = false; speed = 1; $('speed').value = '1'; } };
+$('fullscreen').onclick = async () => { try { if(document.fullscreenElement) await document.exitFullscreen(); else await $('viewer').requestFullscreen(); } catch { error('Full screen is unavailable. Rotate the phone for a larger replay.'); } };
 $('tvHelp').onclick = () => $('help').showModal(); $('closeHelp').onclick = () => $('help').close();
-document.addEventListener('visibilitychange',async()=>{ if(!document.hidden && running) { try { wake = await navigator.wakeLock?.request('screen'); } catch {} } });
-window.addEventListener('pagehide',stop);
+$('closeInstall').onclick = () => $('installHelp').close();
+document.addEventListener('visibilitychange',()=>{ if(document.hidden && (running || starting)) { stop(false); error('Capture stopped because the app went into the background. Retained footage is ready to review.'); } else if(document.hidden) { countdown = null; paused = true; } });
+window.addEventListener('pagehide',() => stop(false));
 requestAnimationFrame(tick);
-
 let installPrompt;
-window.addEventListener('beforeinstallprompt', event => {
-  event.preventDefault(); installPrompt = event;
-});
+window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); installPrompt = event; });
 function markInstalled() { $('install').hidden = true; }
 if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) markInstalled();
 window.addEventListener('appinstalled', markInstalled);
-$('install').onclick = async () => {
-  if (installPrompt) {
-    const prompt = installPrompt; installPrompt = null;
-    await prompt.prompt();
-    const result = await prompt.userChoice;
-    if (result.outcome === 'accepted') markInstalled();
-  } else {
-    const dialog = document.createElement('dialog');
-    const title = document.createElement('h2'); title.textContent = 'Add Lifting Replay to your phone';
-    const text = document.createElement('p'); text.textContent = 'In Chrome on your Galaxy, tap the three-dot menu → Add to home screen → Install (or Create shortcut). Confirm Add. The Lifting Replay icon will appear on your home screen. Open this site directly in Chrome if you are using an in-app browser. Internet is required to launch the app.';
-    const close = document.createElement('button'); close.className = 'primary'; close.textContent = 'Got it'; close.onclick = () => { dialog.close(); dialog.remove(); };
-    dialog.append(title,text,close); document.body.append(dialog); dialog.showModal();
-  }
-};
+$('install').onclick = async () => { if (installPrompt) { const prompt = installPrompt; installPrompt = null; await prompt.prompt(); if ((await prompt.userChoice).outcome === 'accepted') markInstalled(); } else $('installHelp').showModal(); };
