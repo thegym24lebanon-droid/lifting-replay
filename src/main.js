@@ -6,7 +6,7 @@ const settings = {delay: Math.max(5, Math.min(30, Number(saved.delay) || 10)), f
 const persist = () => { try { localStorage.setItem('lifting-settings', JSON.stringify(settings)); } catch {} };
 $('app').innerHTML = `
 <header><a class="brand" href="./">↶ <span>LIFTING<span class="accent">REPLAY</span></span></a><span class="tag">YOUR NEXT REP, IN REVIEW</span></header>
-<main><section class="intro"><div><p class="eyebrow">TRAIN. WATCH. ADJUST.</p><h1>See your lift.<br><span>Find your next improvement.</span></h1><p class="muted">A delayed replay for your phone and mirrored TV.</p></div><button id="tvHelp" class="secondary">▣ Connect your TV</button></section>
+<main><section class="intro"><div><p class="eyebrow">TRAIN. WATCH. ADJUST.</p><h1>See your lift.<br><span>Find your next improvement.</span></h1><p class="muted">A delayed replay for your phone and mirrored TV.</p></div><div class="intro-actions"><button id="install" class="secondary">＋ Add to home screen</button><button id="tvHelp" class="secondary">▣ Connect your TV</button></div></section>
 <section class="workspace"><div class="viewer" id="viewer"><canvas id="replay" aria-label="Delayed camera replay"></canvas><div id="empty"><span class="camera-icon">◎</span><h2>Your replay starts here</h2><p>Place your phone where it can see the whole lift.</p><p>Start the camera, then mirror this screen to your TV.</p></div><div class="viewer-top"><span id="badge">CAMERA OFF</span><button id="fullscreen" class="glass">⛶ Full screen</button></div><div class="viewer-bottom"><span id="status" role="status" aria-live="polite">Ready when you are</span><span id="bufferLabel">90s rolling buffer</span></div><video id="camera" muted playsinline autoplay></video></div>
 <aside><p class="eyebrow">CAMERA CONTROLS</p><h2>Set up your replay</h2><button id="start" class="primary">● Start camera</button><button id="stop" class="secondary" disabled>Stop camera</button><label class="field">Camera<select id="facing"><option value="environment">Rear camera</option><option value="user">Front camera</option></select></label><div class="delay-title"><label for="delay">Replay delay</label><strong id="delayValue"></strong></div><input id="delay" type="range" min="5" max="30" step="1"><div class="range-labels"><span>5 seconds</span><span>30 seconds</span></div><p class="hint">Keep this page open and your screen awake. The replay has no audio.</p><div class="notice"><span class="dot"></span><div><strong>Private by design</strong><p>Camera frames stay on this device. They disappear when you leave.</p></div></div></aside></section>
 <section class="transport"><div class="timeline-title"><strong id="mode">Delayed live replay</strong><span id="position">0:00 / 0:00</span></div><input id="scrub" aria-label="Replay timeline" type="range" min="0" max="0" value="0" step="0.05" disabled><div class="transport-row"><div class="buttons"><button id="back" class="secondary" disabled>↶ 5s</button><button id="pause" class="primary" disabled>Pause</button><button id="forward" class="secondary" disabled>5s ↷</button><button id="lift" class="secondary" disabled>↺ Replay last 15s</button></div><div class="speed"><label for="speed">Speed</label><select id="speed"><option value="1">1× Normal</option><option value="0.5">0.5× Slow</option><option value="0.25">0.25× Slow</option></select><button id="live" class="secondary" disabled>Return to delay</button></div></div></section>
@@ -89,3 +89,25 @@ $('tvHelp').onclick = () => $('help').showModal(); $('closeHelp').onclick = () =
 document.addEventListener('visibilitychange',async()=>{ if(!document.hidden && running) { try { wake = await navigator.wakeLock?.request('screen'); } catch {} } });
 window.addEventListener('pagehide',stop);
 requestAnimationFrame(tick);
+
+let installPrompt;
+window.addEventListener('beforeinstallprompt', event => {
+  event.preventDefault(); installPrompt = event;
+});
+function markInstalled() { $('install').hidden = true; }
+if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) markInstalled();
+window.addEventListener('appinstalled', markInstalled);
+$('install').onclick = async () => {
+  if (installPrompt) {
+    const prompt = installPrompt; installPrompt = null;
+    await prompt.prompt();
+    const result = await prompt.userChoice;
+    if (result.outcome === 'accepted') markInstalled();
+  } else {
+    const dialog = document.createElement('dialog');
+    const title = document.createElement('h2'); title.textContent = 'Add Lifting Replay to your phone';
+    const text = document.createElement('p'); text.textContent = 'In Chrome on your Galaxy, tap the three-dot menu → Add to home screen → Install (or Create shortcut). Confirm Add. The Lifting Replay icon will appear on your home screen. Open this site directly in Chrome if you are using an in-app browser. Internet is required to launch the app.';
+    const close = document.createElement('button'); close.className = 'primary'; close.textContent = 'Got it'; close.onclick = () => { dialog.close(); dialog.remove(); };
+    dialog.append(title,text,close); document.body.append(dialog); dialog.showModal();
+  }
+};

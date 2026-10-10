@@ -8,6 +8,8 @@ await page.goto('http://localhost:5173');
 assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth),true,'mobile layout fits');
 await page.locator('#delay').fill('5'); await page.locator('#delay').dispatchEvent('input');
 await page.reload(); assert.equal(await page.locator('#delay').inputValue(),'5','settings persist');
+await page.locator('#install').click(); assert.equal(await page.locator('dialog').last().isVisible(),true); await page.locator('dialog').last().getByRole('button',{name:'Got it'}).click();
+const manifest = await (await page.request.get('http://localhost:5173/manifest.webmanifest')).json(); assert.equal(manifest.display,'standalone'); assert.equal(manifest.icons.length,2); for(const icon of manifest.icons) assert.equal((await page.request.get('http://localhost:5173/'+icon.src)).status(),200);
 await page.locator('#tvHelp').click(); assert.equal(await page.locator('dialog').isVisible(),true); await page.locator('#closeHelp').click();
 await page.locator('#start').click();
 await page.waitForFunction(()=>document.getElementById('status').textContent === '5s behind camera',{},{timeout:15000});

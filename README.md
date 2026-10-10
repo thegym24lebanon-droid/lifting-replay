@@ -58,3 +58,7 @@ Official documentation websites were blocked by the environment network policy; 
 ## GitHub Pages deployment
 
 The included `.github/workflows/pages.yml` builds and deploys the static app after pushes to `main`. In the repository’s Settings → Pages, select **GitHub Actions** as the source. GitHub Pages must be available for the repository/account (private repository availability depends on the plan). Use the HTTPS URL shown by the successful deployment. The intended project URL is `https://thegym24lebanon-droid.github.io/lifting-replay/`; it is not live until Pages is enabled and deployment succeeds. Relative asset paths support the repository subdirectory.
+
+## Home screen
+
+Open the HTTPS app in Chrome on a Galaxy. Tap Add to home screen in the app, or use Chrome’s three-dot menu → Add to home screen → Install / Create shortcut. The manifest supports a standalone home-screen launch and contains 192px/512px maskable icons. Installation is a user action; a website cannot silently add a home-screen icon. Internet is required at launch; offline mode is not implemented. The current icon is a replay/barbell symbol, pending the user-provided CI logo.
