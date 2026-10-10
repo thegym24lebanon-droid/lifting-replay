@@ -1,0 +1,25 @@
+{
+  "id": "./ci-vr",
+  "name": "Lifting Replay VR",
+  "short_name": "Lifting Replay VR",
+  "description": "Delayed camera replay for lifting practice.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#101914",
+  "theme_color": "#101914",
+  "icons": [
+    {
+      "src": "icons/ci-vr-v2-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/ci-vr-v2-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -62,3 +62,5 @@ The included `.github/workflows/pages.yml` builds and deploys the static app aft
 ## Home screen
 
 Open the HTTPS app in Chrome on a Galaxy. Tap Add to home screen in the app, or use Chrome’s three-dot menu → Add to home screen → Install / Create shortcut. The manifest supports a standalone home-screen launch and contains 192px/512px maskable icons. Installation is a user action; a website cannot silently add a home-screen icon. Internet is required at launch; offline mode is not implemented. The home-screen icon and header use a metallic CI-style mark with a small cyan VR badge, distinguishing Lifting Replay from the original program icon. To replace an existing shortcut’s cached icon, remove that shortcut and add the app to the home screen again.
+
+The VR version uses a new manifest URL, icon URLs, and an explicit CI-VR application identity to avoid reusing the earlier installed app’s branding. It appears as Lifting Replay VR. Existing installations may need to be uninstalled (not just have their shortcut removed); this does not remove the original separate CI program.
