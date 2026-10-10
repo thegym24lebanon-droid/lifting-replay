@@ -1,0 +1,30 @@
+import { chromium } from '@playwright/test';
+import assert from 'node:assert/strict';
+const browser = await chromium.launch({executablePath:process.env.CHROMIUM_PATH || '/usr/bin/chromium',args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream']});
+try {
+const context = await browser.newContext({viewport:{width:390,height:844},permissions:['camera']});
+const page = await context.newPage(); const errors=[]; page.on('pageerror', e=>errors.push(e.message));
+await page.goto('http://localhost:5173');
+assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth),true,'mobile layout fits');
+await page.locator('#delay').fill('5'); await page.locator('#delay').dispatchEvent('input');
+await page.reload(); assert.equal(await page.locator('#delay').inputValue(),'5','settings persist');
+await page.locator('#tvHelp').click(); assert.equal(await page.locator('dialog').isVisible(),true); await page.locator('#closeHelp').click();
+await page.locator('#start').click();
+await page.waitForFunction(()=>document.getElementById('status').textContent === '5s behind camera',{},{timeout:15000});
+await page.waitForFunction(()=>document.getElementById('replay').width===640);
+assert.equal(await page.evaluate(()=>{const c=document.getElementById('replay');return c.getContext('2d').getImageData(100,100,1,1).data[3]===255}),true,'camera frames rendered');
+await page.locator('#pause').click();assert.equal(await page.locator('#pause').textContent(),'Play');
+await page.waitForTimeout(100);const position=await page.locator('#scrub').inputValue();await page.waitForTimeout(350);assert.equal(await page.locator('#scrub').inputValue(),position,'paused playhead stays still');
+await page.locator('#back').click();assert.ok(Number(await page.locator('#scrub').inputValue())<=Number(position));
+await page.locator('#forward').click();
+await page.locator('#speed').selectOption('0.25');await page.locator('#lift').click();await page.waitForFunction(()=>document.getElementById('mode').textContent.includes('0.25'));
+await page.locator('#live').click();await page.waitForFunction(()=>document.getElementById('mode').textContent==='Delayed live replay');
+await page.screenshot({path:'/tmp/lifting-replay-mobile.png',fullPage:true});
+await page.locator('#stop').click();assert.equal(await page.locator('#start').isEnabled(),true);
+await page.locator('#pause').click();await page.waitForFunction(()=>document.getElementById('mode').textContent.startsWith('Replay ·'));
+await page.locator('#start').click();await page.waitForFunction(()=>document.getElementById('badge').textContent==='BUFFERING');
+await page.locator('#stop').click();assert.deepEqual(errors,[]);
+await context.close();
+const denied=await browser.newContext(); const p=await denied.newPage();await p.addInitScript(()=>{navigator.mediaDevices.getUserMedia=async()=>{throw new DOMException('Denied','NotAllowedError')}});await p.goto('http://localhost:5173');await p.locator('#start').click();assert.match(await p.locator('#error').textContent(),/permission was denied/);await denied.close();
+console.log('PASS: mobile layout, settings persistence, camera frames, delayed replay, pause, seeking, slow motion, replay, stop/restart, permission errors; no browser exceptions.');
+} finally {await browser.close();}
