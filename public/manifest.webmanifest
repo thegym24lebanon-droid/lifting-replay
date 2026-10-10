@@ -3,7 +3,7 @@
   "name": "Lifting Replay VR",
   "short_name": "Lifting Replay VR",
   "description": "Delayed camera replay for lifting practice.",
-  "start_url": "./?v=ci-vr3",
+  "start_url": "./?v=ci-vr3.1",
   "scope": "./",
   "display": "standalone",
   "background_color": "#0b0f12",

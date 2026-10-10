@@ -12,7 +12,7 @@ try {
  await page.goto(base); await delay(page,5);await page.reload();assert.equal(await page.locator('#delay').inputValue(),'5');
  await page.locator('#install').click();assert.equal(await page.locator('#installHelp').isVisible(),true);await page.locator('#closeInstall').click();
  await page.locator('#tvHelp').click();assert.match(await page.locator('#help').textContent(),/same screen/);await page.locator('#closeHelp').click();
- const manifestUrl=new URL(await page.locator('link[rel=manifest]').getAttribute('href'),page.url());const manifest=await (await page.request.get(manifestUrl.href)).json();assert.equal(manifest.start_url,'./?v=ci-vr3');assert.equal(manifest.id,'./ci-vr');
+ const manifestUrl=new URL(await page.locator('link[rel=manifest]').getAttribute('href'),page.url());const manifest=await (await page.request.get(manifestUrl.href)).json();assert.equal(manifest.start_url,'./?v=ci-vr3.1');assert.equal(manifest.id,'./ci-vr');
  for(const icon of manifest.icons)assert.equal((await page.request.get(new URL(icon.src,manifestUrl).href)).status(),200);
  await page.locator('#start').click();await waitText(page,'badge','BUFFERING');
  assert.equal(await page.locator('#livePreview').isVisible(),true);assert.ok(await nonblack(page,'camera'),'live camera pixels during buffering');

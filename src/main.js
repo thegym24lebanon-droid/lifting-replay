@@ -36,7 +36,6 @@ async function sample() {
     const time = seconds(), blob = await new Promise(resolve => capture.toBlob(resolve,'image/jpeg',0.72));
     if (blob && running && token === session) {
       if (!buffer.add(time,blob)) { stop(false); error('Recording stopped at the 128 MiB memory limit. Your complete captured footage is ready to review. Record next clears this clip.'); }
-      else if (mode === 'running' && time > settings.delay && buffer.first > time - settings.delay + 0.5) { stop(false); error('The selected delay exceeded available memory. Capture stopped safely; retained footage is ready to review. Try a shorter delay.'); }
     }
   } catch { if (token === session) { stop(false); error('Camera frames could not be captured. Retained footage is available; try starting again.'); } }
   finally { busy = false; }
@@ -102,7 +101,7 @@ function tick(now) {
   $('badge').textContent = running ? (mode === 'record' ? 'RECORDING' : warming ? 'LIVE · BUFFERING' : 'DELAYED REPLAY') : buffer.frames.length ? 'REVIEW' : 'CAMERA OFF';
   $('status').textContent = countdown !== null ? `Auto-replay in ${Math.max(1,Math.ceil((countdown-now)/1000))}s · review now to cancel` : running && mode === 'record' ? `Recording ${fmt(seconds())} · tap Stop to review` : warming ? `Delayed replay in ${Math.ceil(settings.delay-seconds())}s` : running && follow ? `${settings.delay}s behind camera` : buffer.frames.length ? paused ? 'Paused' : `Playing · ${speed}×` : 'Ready';
   $('reviewLabel').textContent = follow && running ? 'Delayed replay' : 'Review';
-  $('storage').textContent = mode === 'record' ? `${Math.ceil(buffer.bytes/1024/1024)} / 128 MiB · ${running ? 'Stop when finished' : 'Clip clears on Record next or reload'}` : `${Math.round(buffer.last-buffer.first)}s / up to 90s rolling review`;
+  $('storage').textContent = mode === 'record' ? `${Math.ceil(buffer.bytes/1024/1024)} / 128 MiB · ${running ? 'Stop when finished' : 'Clip clears on Record next or reload'}` : `${Math.round(buffer.last-buffer.first)}s / up to 90s rolling review${buffer.thinned ? ' · reduced replay frame rate' : ''}`;
   requestAnimationFrame(tick);
 }
 $('start').onclick = start; $('stop').onclick = () => stop(); $('screenStop').onclick = () => stop();

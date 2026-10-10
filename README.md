@@ -4,9 +4,9 @@ A browser camera and replay app for a phone mirrored to a TV. No account, backen
 
 ## Use
 
-Open https://thegym24lebanon-droid.github.io/lifting-replay/?v=ci-vr3 in Chrome.
+Open https://thegym24lebanon-droid.github.io/lifting-replay/?v=ci-vr3.1 in Chrome.
 
-- **Running Camera:** choose a 5–30 second delay and Start camera. Capture continues until Stop, except a browser/camera interruption or memory protection. Live framing fills the viewer while buffering; then a labeled live inset accompanies the large delayed replay. Pause, scrub, or slow down for review; Return to delay resumes following the selected delay. Stop retains the rolling footage.
+- **Running Camera:** choose a 5–30 second delay and Start camera. Capture continues until Stop, except a browser/camera interruption. Live framing fills the viewer while buffering; then a labeled live inset accompanies the large delayed replay. Pause, scrub, or slow down for review; Return to delay resumes following the selected delay. Stop retains the rolling footage.
 - **Record & Review:** manually start and stop. The full viewer shows live framing during recording. The selected 5–30 second countdown starts at Stop, then plays from the beginning. Playback, scrub, ±5 seconds, and speed are immediately available after Stop; using any of them cancels auto-replay. Record next clears the previous clip only after the new camera session starts successfully. Changing mode also cancels a pending countdown while retaining the stopped footage.
 - **Connect to TV:** use Galaxy Smart View with a compatible ScreenCast/Miracast receiver. Ordinary mirroring shows the same output on the phone and TV. Receiver latency is additional and outside this app’s control. The fullscreen viewer includes a Stop button. Exit fullscreen for review controls.
 - **Home screen:** remove the old Lifting Replay shortcut, open the revised URL in Chrome, then ⋮ → Add to home screen → Install / Create shortcut. If it is an installed app, uninstall only Lifting Replay VR before reinstalling. Do not remove the separate CI program.
@@ -15,7 +15,7 @@ Open https://thegym24lebanon-droid.github.io/lifting-replay/?v=ci-vr3 in Chrome.
 
 The app stores compressed JPEG frames at a target 15 fps, up to 960 pixels wide. It does not store raw image frames or interpret MediaRecorder chunks as standalone clips. Slow motion is 0.5× or 0.25×; it does not create extra frames. Footage is silent, session-only, and disappears on reload/close; no video-file export is provided.
 
-Running Camera retains up to 90 seconds within 96 MiB of compressed footage. Older frames expire during continued capture, including paused frames. If memory pressure prevents the selected delay, capture stops with a visible explanation rather than silently shortening the delay.
+Running Camera retains up to 90 seconds within 96 MiB of compressed footage. Older frames expire during continued capture, including paused frames. At the byte cap, intermediate frames are thinned and the UI reports a reduced replay frame rate. Capture keeps running; it never stops because the rolling buffer fills. The retained timeline endpoints are preserved for delayed playback. Extreme pressure can make replay choppy; a single frame larger than the entire cap is skipped.
 
 Record & Review retains every accepted frame from the beginning, capped at 128 MiB. It has no time-based auto-stop. Reaching the byte limit stops capture, preserves the accepted footage, and shows a clear message with review available immediately; it does not start auto-replay. The small in-flight sample at Stop may be omitted (normally under one sampling interval). Decoded display frames and browser overhead require memory in addition to these compressed-byte caps.
 
@@ -36,6 +36,7 @@ npm ci --cache /workspace/.npm-cache
 npm run dev -- --port 5173
 npm test
 node scripts/verify-browser.mjs
+node scripts/verify-pressure.mjs
 npm run build
 ```
 

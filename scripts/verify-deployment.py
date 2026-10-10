@@ -26,7 +26,7 @@ for attempt in range(18):
         for name in ['replay-vr-v3.webmanifest', 'replay-vr.webmanifest', 'manifest.webmanifest']:
             manifest = json.loads(fetch(name))
             assert manifest == json.loads((ROOT / 'public' / name).read_text())
-            assert manifest['start_url'] == './?v=ci-vr3'
+            assert manifest['start_url'] == './?v=ci-vr3.1'
             for icon in manifest['icons']:
                 data = fetch(icon['src'])
                 assert data == (ROOT / 'public' / icon['src']).read_bytes(), icon['src']
