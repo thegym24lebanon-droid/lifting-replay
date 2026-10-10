@@ -21,12 +21,15 @@ for attempt in range(18):
         version = json.loads(fetch('version.json'))
         assert version['commit'] == COMMIT, version
         html = fetch('').decode()
-        assert './replay-vr-v4.webmanifest' in html
+        assert './video-replay-v5.webmanifest' in html
+        assert '<title>Video Replay</title>' in html
+        assert 'content="Video Replay"' in html
         assert html.count('./icons/ci-vr-v4-192.png') == 2, 'favicon and Apple touch icon'
-        for name in ['replay-vr-v4.webmanifest', 'replay-vr.webmanifest', 'manifest.webmanifest']:
+        for name in ['video-replay-v5.webmanifest', 'replay-vr-v4.webmanifest', 'replay-vr.webmanifest', 'manifest.webmanifest']:
             manifest = json.loads(fetch(name))
             assert manifest == json.loads((ROOT / 'public' / name).read_text())
-            assert manifest['start_url'] == './?v=ci-vr4'
+            assert manifest['start_url'] == './?v=video-replay5'
+            assert manifest['name'] == manifest['short_name'] == 'Video Replay'
             for icon in manifest['icons']:
                 data = fetch(icon['src'])
                 assert data == (ROOT / 'public' / icon['src']).read_bytes(), icon['src']
