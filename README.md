@@ -47,3 +47,20 @@ Physical Galaxy S26 Ultra camera behavior, thermal/memory behavior during long s
 ## Deployment
 
 The existing `.github/workflows/pages.yml` runs unit tests and a production build and deploys GitHub Pages on pushes to `main`. No sharing/access or paid services need changing. Build output uses Vite content-hashed JS/CSS and a `version.json` containing the exact Git commit for deployment verification.
+
+## Optional bar path (experimental)
+
+Pause at a clear frame, tap **Track bar**, then tap the visible bar end or plate center directly on the video, including in fullscreen. Play or scrub forward to compute the path. The entire computed cyan trajectory stays visible when scrubbing in either direction; the yellow marker indicates the current position only where a reliable match is known. **Reselect bar** corrects from the chosen frame without connecting across the correction; **Clear path** removes it. New recordings clear the tracker. Running Camera continues capturing during review and tracking.
+
+Use a fixed, side-on camera with the bar end visible and reasonably detailed. Tracking is approximate visual patch matching, not calibrated distance, velocity, or biomechanics. Blur, occlusion, uniform surfaces, similar nearby objects, lighting/rotation changes, fast motion, or gaps in retained frames can cause loss. Low-confidence/ambiguous matches pause review at the last reliable point and request reselection. Real gym footage and Galaxy/ScreenCast performance remain unverified.
+
+The implementation uses local zero-mean normalized cross-correlation ([method reference](https://docs.opencv.org/4.x/de/da9/tutorial_template_matching.html)), a 15×15 grayscale patch, a bounded search region, and transient images at up to 480px width. No library download, backend, accounts, footage upload, or new permission is needed. Forward seeks process intervening retained frames in order, asynchronously; video review remains responsive while the path catches up. Rewinding keeps the computed trajectory. Points expire with rolling footage to bound memory. All trajectory data is temporary.
+
+Additional validation:
+
+```sh
+node scripts/verify-fullscreen.mjs
+node scripts/verify-tracker.mjs
+```
+
+Tracker unit tests cover known trajectories, distractors, occlusion, ambiguity, skipped frames, cancellation, reselection, and letterbox coordinates. Browser tests capture a synthetic moving textured target, then test fullscreen touch selection, forward/backward seeks with persistent path, slow motion, orientation/entry/exit, loss/reselection, clear, and continued Running Camera capture. These are synthetic tests, not physical-device or gym accuracy claims.
