@@ -52,6 +52,7 @@ try {
     await page.touchscreen.tap(r.x + 10 + (r.width - 20) * fraction, r.y + r.height / 2);
     await page.waitForTimeout(150);
   };
+  await page.locator('#fsFineScrub').click(); // Whole-timeline seeks use Overview.
   await seek(.75); assert.ok(Number(await page.locator('#fsScrub').inputValue()) > 2.5);
   await seek(.1); assert.ok(Number(await page.locator('#fsScrub').inputValue()) < .6);
   await page.locator('#fsScrub').press('Home'); await page.waitForTimeout(150);

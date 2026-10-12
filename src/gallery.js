@@ -1,5 +1,6 @@
 // The selected file stays on the device. Native video decoding avoids expanding
 // an entire gallery clip into the camera's bounded JPEG buffer.
+import { videoFrameTimes, frameIndex } from './frames.js';
 function ready(video, event, predicate, signal) {
   if (signal.aborted) return Promise.reject(new Error('Video closed.'));
   if (predicate()) return Promise.resolve();
@@ -40,11 +41,21 @@ export class GalleryClip {
   async load() {
     await Promise.all([this.video, this.decoder].map(video => ready(video, 'loadeddata', () => video.readyState >= 2, this.controller.signal)));
     if (!Number.isFinite(this.duration) || this.duration <= 0 || !this.video.videoWidth) throw new Error('This file has no playable video track. Choose another video.');
+    try { this.frameTimes = await videoFrameTimes(this.file, this.duration, this.controller.signal); }
+    catch (e) { if (this.controller.signal.aborted) throw e; this.frameTimes = null; }
     return this;
   }
   seek(time) { this.video.currentTime = Math.max(0, Math.min(this.duration, time)); }
   play(speed) { this.video.playbackRate = speed; return this.video.play(); }
   pause() { this.video.pause(); }
+  seekFrame(time) {
+    if (!this.frameTimes) { this.seek(time); return; }
+    const index = frameIndex(this.frameTimes, time), start = this.frameTimes[index];
+    const end = this.frameTimes[index + 1] ?? this.duration;
+    // Seek inside the frame's interval to avoid boundary rounding selecting the
+    // preceding frame on native mobile video decoders.
+    this.seek(start + Math.min(.0001, Math.max(0, end - start) / 4));
+  }
   read(time) {
     // Selection and an earlier cancelled trace may overlap; serialize decoder
     // seeks so each point is computed from its own requested video frame.

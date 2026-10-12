@@ -3,9 +3,10 @@ import { ReplayBuffer, delayedTime } from './buffer.js';
 import { BarPath, videoPoint } from './tracker.js';
 import { GalleryClip, analysisFrames } from './gallery.js';
 import { ReplayZoom } from './zoom.js';
+import { frameIndex, snapFrame, adjacentFrame } from './frames.js';
 const $ = id => document.getElementById(id);
 let saved = {}; try { saved = JSON.parse(localStorage.getItem('lifting-settings') || '{}'); } catch {}
-const settings = {delay: Math.max(5, Math.min(30, Number(saved.delay) || 10)), facing: saved.facing === 'user' ? 'user' : 'environment'};
+const settings = {delay: Math.max(5, Math.min(30, Number(saved.delay) || 10)), facing: saved.facing === 'user' ? 'user' : 'environment', fineScrub: saved.fineScrub !== false};
 const persist = () => { try { localStorage.setItem('lifting-settings', JSON.stringify(settings)); } catch {} };
 $('app').innerHTML = `
 <header><a class="brand" href="./"><img src="./icons/ci-vr-v4-192.png" alt="CI VR"><span>Video Replay</span></a><div class="header-actions"><button id="tvHelp">Connect to TV</button><button id="install" aria-label="Add to home screen">Install</button></div></header>
@@ -13,7 +14,7 @@ $('app').innerHTML = `
 <section class="viewer" id="viewer"><canvas id="replay" aria-label="Replay"></canvas><div id="empty">Start camera to see your framing</div><div id="livePreview" hidden><video id="camera" muted playsinline autoplay></video><span>LIVE</span></div><div class="bar-tools"><div><button id="trackBar" disabled>Track bar</button><button id="clearTrack" hidden>Clear path</button></div><span id="trackStatus" role="status" hidden></span></div><div class="viewer-top"><div class="viewer-state"><img class="fullscreen-brand" src="./icons/ci-vr-v4-192.png" alt="CI VR"><span id="badge">CAMERA OFF</span></div><button id="fullscreen">Full screen</button></div><div class="viewer-bottom"><span id="status" role="status">Ready</span><button id="screenStop" hidden>Stop</button></div><div class="fullscreen-transport"><div class="timeline-title"><label for="fsScrub">Replay timeline</label><span id="fsPosition">0:00 / 0:00</span></div><input id="fsScrub" aria-label="Full-screen replay timeline" type="range" min="0" max="0" value="0" step="0.01" disabled><div class="transport-row"><button id="fsPause" class="primary" disabled>Play</button><label>Speed<select id="fsSpeed" disabled><option value="1">1×</option><option value="0.5">0.5×</option><option value="0.25">0.25×</option></select></label><button id="fsLive" disabled>Return to delay</button></div></div></section>
 <div class="capture-controls"><button id="start" class="primary">Start camera</button><button id="stop" disabled>Stop</button><button id="openGallery">Analyze gallery video</button><span id="storage">Up to 90s rolling review</span></div>
 <section class="transport"><div class="timeline-title"><span id="reviewLabel">Replay</span><span id="position">0:00 / 0:00</span></div><input id="scrub" aria-label="Replay timeline" type="range" min="0" max="0" value="0" step="0.01" disabled><div class="transport-row"><button id="back" disabled>−5s</button><button id="pause" class="primary" disabled>Play</button><button id="forward" disabled>+5s</button><label>Speed<select id="speed" disabled><option value="1">1×</option><option value="0.5">0.5×</option><option value="0.25">0.25×</option></select></label><button id="live" disabled>Return to delay</button></div></section><p id="error" role="alert" hidden></p>
-<dialog id="help"><h2>Connect to TV</h2><p>On your Galaxy, open Quick Settings → <strong>Smart View</strong>, select your ScreenCast receiver, and accept the connection. Return here and use Full screen.</p><p>The phone and TV show the same screen, including the LIVE preview. ScreenCast adds its own latency beyond the selected delay.</p><p>Keep this page open and the screen awake. If the receiver is missing, check its Android / Miracast mode and compatibility, or use a compatible USB-C to HDMI connection.</p><button id="closeHelp" class="primary">Done</button></dialog>
+<dialog id="help"><h2>Connect to TV</h2><p>On your Galaxy, open Quick Settings → <strong>Smart View</strong>, select your ScreenCast receiver, and accept the connection. Return here and tap <strong>TV view</strong>.</p><p>Rotate the phone to landscape. If available, choose <strong>Full screen on connected device</strong> in Smart View’s aspect ratio settings. Tap <strong>Hide controls</strong> for the largest unobstructed picture; tap the picture to bring them back.</p><p>The whole video is preserved. Portrait videos have side borders on a wide TV. The phone and TV show the same screen; ScreenCast adds its own latency beyond the selected delay.</p><p>Keep this page open and the screen awake. If the receiver is missing, check its Android / Miracast mode and compatibility, or use a compatible USB-C to HDMI connection.</p><button id="closeHelp" class="primary">Done</button></dialog>
 <dialog id="installHelp"><h2>Add to home screen</h2><p>Open this link in Chrome. Remove the old replay shortcut, then tap Chrome’s ⋮ menu → Add to home screen → Install or Create shortcut. Leave your separate CI program in place.</p><p>Internet is required to open the app. Footage is temporary and clears on reload.</p><button id="closeInstall" class="primary">Done</button></dialog></main>`;
 $('delay').value = settings.delay; $('delayValue').textContent = `${settings.delay}s`; $('facing').value = settings.facing;
 const buffer = new ReplayBuffer(90, 96 * 1024 * 1024);
@@ -24,6 +25,45 @@ screenActions.innerHTML = '<button id="screenStart" class="primary">Turn camera 
 $('screenStop').before(screenActions);
 const screenError = document.createElement('p'); screenError.id = 'screenError'; screenError.setAttribute('role','alert'); screenError.hidden = true;
 $('viewer').append(screenError);
+let tvMode = false, tvHiddenBy = null, tvTimer = null, tvOrientationOwned = false, tvWasPlaying = false;
+const displayActions = document.createElement('div'); displayActions.className = 'display-actions';
+$('fullscreen').before(displayActions); displayActions.append($('fullscreen'));
+const tvButton = document.createElement('button'); tvButton.id = 'tvView'; tvButton.textContent = 'TV view';
+displayActions.prepend(tvButton);
+const hideButton = document.createElement('button'); hideButton.id = 'hideTVControls'; hideButton.textContent = 'Hide controls';
+displayActions.prepend(hideButton);
+const showButton = document.createElement('button'); showButton.id = 'showTVControls'; showButton.textContent = 'Show controls';
+$('viewer').append(showButton);
+const tvHint = document.createElement('p'); tvHint.id = 'tvHint'; tvHint.textContent = 'Whole video preserved. Use landscape; in Smart View settings, choose “Full screen on connected device” if available.';
+$('viewer').append(tvHint);
+function showTVControls(restart = true) {
+  clearTimeout(tvTimer); tvHiddenBy = null; $('viewer').classList.remove('tv-controls-hidden');
+  if (restart && tvMode && !paused && !selectingBar && !trackingHold) tvTimer = setTimeout(() => hideTVControls('auto'), 4000);
+}
+function hideTVControls(reason) {
+  if (!tvMode || selectingBar || trackingHold || (reason === 'auto' && paused)) return;
+  clearTimeout(tvTimer); tvHiddenBy = reason; $('viewer').classList.add('tv-controls-hidden');
+}
+function leaveTVView() {
+  tvMode = false; showTVControls(false); $('viewer').classList.remove('tv-mode'); document.body.classList.remove('tv-view-open');
+  tvButton.textContent = 'TV view'; if (tvOrientationOwned) screen.orientation?.unlock?.(); tvOrientationOwned = false;
+}
+tvButton.onclick = async () => {
+  if (tvMode) { leaveTVView(); return; }
+  tvMode = true; zoom.reset(); $('viewer').classList.add('tv-mode'); document.body.classList.add('tv-view-open');
+  tvButton.textContent = 'Exit TV view'; showTVControls();
+  try { if (!document.fullscreenElement) await $('viewer').requestFullscreen(); } catch {}
+  try { if (screen.orientation?.lock) { await screen.orientation.lock('landscape'); if (tvMode) tvOrientationOwned = true; else screen.orientation.unlock?.(); } } catch {}
+};
+hideButton.onclick = () => hideTVControls('manual'); showButton.onclick = () => showTVControls();
+$('viewer').addEventListener('pointerdown', () => { if (tvMode) showTVControls(); }, { capture: true });
+for (const [range, prefix] of [['scrub',''],['fsScrub','fs']]) {
+  $(range).step = 'any';
+  const controls = document.createElement('div'); controls.className = 'frame-controls';
+  const id = name => prefix ? prefix + name[0].toUpperCase() + name.slice(1) : name;
+  controls.innerHTML = `<button id="${id('prevFrame')}" aria-label="Previous frame" disabled>‹ Frame</button><button id="${id('nextFrame')}" aria-label="Next frame" disabled>Frame ›</button><button id="${id('fineScrub')}" aria-pressed="${settings.fineScrub}">Fine scrub</button><span id="${id('frameInfo')}">No frames yet</span>`;
+  $(range).after(controls);
+}
 const capture = document.createElement('canvas');
 const trackCanvas = document.createElement('canvas');
 let selectingBar = false, reportedLoss = null, trackingWork = false, draftPoint = null, trackingHold = null;
@@ -87,8 +127,29 @@ function error(message) { $('error').textContent = $('screenError').textContent 
 function firstTime() { return gallery ? 0 : buffer.first; }
 function lastTime() { return gallery ? gallery.duration : buffer.last; }
 function hasFootage() { return !!gallery || buffer.frames.length > 0; }
+let timelineCache = { count: -1, first: null, last: null, times: [] };
+function frameTimes() {
+  if (gallery) return gallery.frameTimes ?? [];
+  if (timelineCache.count !== buffer.frames.length || timelineCache.first !== buffer.first || timelineCache.last !== buffer.last) {
+    timelineCache = { count: buffer.frames.length, first: buffer.first, last: buffer.last, times: buffer.frames.map(frame => frame.time) };
+  }
+  return timelineCache.times;
+}
+function updateFrameControls() {
+  const times = frameTimes(), index = frameIndex(times, playhead), ready = hasFootage() && !$('scrub').disabled && times.length > 0;
+  for (const prefix of ['', 'fs']) {
+    const id = name => prefix ? prefix + name[0].toUpperCase() + name.slice(1) : name;
+    $(id('prevFrame')).disabled = !ready || index <= 0;
+    $(id('nextFrame')).disabled = !ready || index >= times.length - 1;
+    $(id('fineScrub')).disabled = !ready;
+    $(id('fineScrub')).setAttribute('aria-pressed', String(settings.fineScrub));
+    $(id('fineScrub')).textContent = gallery && !times.length ? 'Time scrub' : settings.fineScrub ? 'Fine scrub' : 'Overview';
+    $(id('frameInfo')).textContent = times.length ? `Frame ${index+1} / ${times.length}` : gallery ? 'Frame steps unavailable' : 'No frames yet';
+  }
+}
 function controls(enabled) { for (const id of ['back','pause','forward','scrub','speed','fsScrub','fsPause','fsSpeed','trackBar','zoomIn','zoomOut','zoomReset']) $(id).disabled = !enabled; viewport.classList.toggle('zoom-enabled', enabled); $('live').disabled = $('fsLive').disabled = !enabled || !running || mode !== 'running'; }
 function layout(warming = false) {
+  $('viewer').classList.toggle('placing-bar', selectingBar);
   $('livePreview').hidden = !running || selectingBar || zoom.state.scale>1;
   $('viewer').classList.toggle('live-main', running && (mode === 'record' || warming));
   $('screenStop').hidden = !running;
@@ -183,7 +244,7 @@ function stop(autoReplay = true) {
   controls(hasFootage()); layout();
 }
 function manual(cancelHold = true) { follow = false; countdown = null; if (cancelHold && trackingHold) { trackingHold = null; paused = true; gallery?.pause(); } }
-function seek(value) { barPath.cancel(); manual(); playhead = Math.max(firstTime(), Math.min(lastTime(), value)); if (gallery) gallery.seek(playhead); }
+function seek(value, exactFrame = false) { barPath.cancel(); manual(); playhead = Math.max(firstTime(), Math.min(lastTime(), value)); if (gallery) { if (exactFrame) gallery.seekFrame(playhead); else gallery.seek(playhead); } }
 function traceTo(frame) {
   if (!frame || trackingWork || selectingBar || !barPath.tracker || barPath.lostAt!==null) return;
   const requested = Math.min(lastTime(), trackingHold?.target ?? frame.time + (paused ? 0 : .6));
@@ -264,6 +325,13 @@ function tick(now) {
   $('status').textContent = loadingGallery ? 'Opening gallery video…' : gallery ? gallery.video.seeking ? 'Seeking…' : paused ? 'Gallery video · paused' : `Gallery video · ${speed}×` : countdown !== null ? `Auto-replay in ${Math.max(1,Math.ceil((countdown-now)/1000))}s · review now to cancel` : running && mode === 'record' ? `Recording ${fmt(seconds())} · tap Stop to review` : warming ? `Delayed replay in ${Math.ceil(settings.delay-seconds())}s` : running && follow ? `${settings.delay}s behind camera` : buffer.frames.length ? paused ? 'Paused' : `Playing · ${speed}×` : 'Ready';
   $('reviewLabel').textContent = gallery ? 'Gallery video' : follow && running ? 'Delayed replay' : 'Review';
   $('storage').textContent = gallery ? `${gallery.file.name} · stays on this device` : mode === 'record' ? `${Math.ceil(buffer.bytes/1024/1024)} / 128 MiB · ${running ? 'Stop when finished' : 'Clip clears on Record next or reload'}` : `${Math.round(buffer.last-buffer.first)}s / up to 90s rolling review${buffer.thinned ? ' · reduced replay frame rate' : ''}`;
+  updateFrameControls();
+  if (tvMode) {
+    if ((tvHiddenBy === 'auto' && paused) || selectingBar || trackingHold || !$('error').hidden) showTVControls(false);
+    const playing = !paused && !selectingBar && !trackingHold;
+    if (playing && !tvWasPlaying && !tvHiddenBy) showTVControls();
+    tvWasPlaying = playing;
+  }
   requestAnimationFrame(tick);
 }
 $('trackBar').onclick = () => {
@@ -297,31 +365,56 @@ $('galleryFile').onchange = () => loadGallery($('galleryFile').files[0]);
 $('captureMode').onchange = () => { mode = $('captureMode').value; countdown = null; $('delayTitle').textContent = mode === 'record' ? 'Replay after Stop' : 'Replay delay'; $('start').textContent = mode === 'record' ? (buffer.frames.length ? 'Record next' : 'Start recording') : 'Start camera'; layout(); };
 $('delay').oninput = () => { settings.delay = Math.max(5,Math.min(30,Number($('delay').value))); $('delayValue').textContent = `${settings.delay}s`; persist(); };
 $('facing').onchange = () => { settings.facing = $('facing').value; persist(); };
-function scrub(value) { seek(value); paused = true; gallery?.pause(); }
+function scrub(value) { seek(snapFrame(frameTimes(), value), true); paused = true; gallery?.pause(); }
 $('scrub').oninput = () => scrub(Number($('scrub').value));
 $('fsScrub').oninput = () => scrub(Number($('fsScrub').value));
-// Capture touch/mouse pointers inside the fullscreen element. Freeze the drag's
-// time bounds while capture keeps adding frames; seek still clamps expired data.
+for (const prefix of ['', 'fs']) {
+  const id = name => prefix ? prefix + name[0].toUpperCase() + name.slice(1) : name;
+  $(id('prevFrame')).onclick = () => scrub(adjacentFrame(frameTimes(), playhead, -1));
+  $(id('nextFrame')).onclick = () => scrub(adjacentFrame(frameTimes(), playhead, 1));
+  $(id('fineScrub')).onclick = () => { settings.fineScrub = !settings.fineScrub; persist(); updateFrameControls(); };
+}
+// Fine scrubbing advances one real frame per 3px, independent of clip length.
+// Overview maps the whole timeline, but still snaps to presentation timestamps.
 let scrubDrag = null;
 function dragScrub(event) {
   if (!scrubDrag || event.pointerId !== scrubDrag.id) return;
   event.preventDefault(); event.stopPropagation();
-  const rect = $('fsScrub').getBoundingClientRect();
-  const fraction = Math.max(0,Math.min(1,(event.clientX-rect.left-10)/Math.max(1,rect.width-20)));
-  scrub(scrubDrag.first + fraction * (scrubDrag.last-scrubDrag.first));
+  if (scrubDrag.fine && scrubDrag.times.length) {
+    const offset = Math.trunc((event.clientX - scrubDrag.startX) / 3);
+    const index = Math.max(0, Math.min(scrubDrag.times.length-1, scrubDrag.index + offset));
+    scrub(scrubDrag.times[index]);
+  } else {
+    const rect = scrubDrag.element.getBoundingClientRect();
+    const fraction = Math.max(0,Math.min(1,(event.clientX-rect.left-10)/Math.max(1,rect.width-20)));
+    scrub(scrubDrag.first + fraction * (scrubDrag.last-scrubDrag.first));
+  }
 }
-$('fsScrub').onpointerdown = event => {
-  if ($('fsScrub').disabled || (event.pointerType === 'mouse' && event.button !== 0)) return;
-  scrubDrag = {id:event.pointerId,first:firstTime(),last:lastTime()};
-  $('fsScrub').focus(); $('fsScrub').setPointerCapture(event.pointerId); dragScrub(event);
-};
-$('fsScrub').onpointermove = dragScrub;
-$('fsScrub').onpointerup = event => {
-  if (scrubDrag?.id !== event.pointerId) return;
-  dragScrub(event); scrubDrag = null;
-  if ($('fsScrub').hasPointerCapture(event.pointerId)) $('fsScrub').releasePointerCapture(event.pointerId);
-};
-$('fsScrub').onpointercancel = $('fsScrub').onlostpointercapture = () => { scrubDrag = null; };
+for (const id of ['scrub','fsScrub']) {
+  const element = $(id);
+  element.onpointerdown = event => {
+    if (element.disabled || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    if (scrubDrag && scrubDrag.id !== event.pointerId) return;
+    const times = frameTimes();
+    scrubDrag = { id:event.pointerId, element, first:firstTime(), last:lastTime(), startX:event.clientX, times, index:frameIndex(times,playhead), fine:settings.fineScrub };
+    element.focus(); element.setPointerCapture(event.pointerId); dragScrub(event);
+  };
+  element.onpointermove = dragScrub;
+  element.onpointerup = event => {
+    if (scrubDrag?.id !== event.pointerId) return;
+    dragScrub(event); scrubDrag = null;
+    if (element.hasPointerCapture(event.pointerId)) element.releasePointerCapture(event.pointerId);
+  };
+  element.onpointercancel = element.onlostpointercapture = () => { scrubDrag = null; };
+  element.onkeydown = event => {
+    const times = frameTimes();
+    if (!times.length) return;
+    if (['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) {
+      event.preventDefault();
+      scrub(event.key==='Home' ? times[0] : event.key==='End' ? times.at(-1) : adjacentFrame(times,playhead,event.key==='ArrowLeft'?-1:1));
+    }
+  };
+}
 
 $('back').onclick = () => seek(playhead-5); $('forward').onclick = () => seek(playhead+5);
 $('pause').onclick = async () => {
@@ -343,6 +436,7 @@ $('fsSpeed').onchange = () => { $('speed').value = $('fsSpeed').value; $('speed'
 $('fsLive').onclick = () => $('live').click();
 document.addEventListener('fullscreenchange',() => {
   scrubDrag = null;
+  if (!document.fullscreenElement && tvMode) leaveTVView();
   $('fullscreen').textContent = document.fullscreenElement === $('viewer') ? 'Exit full screen' : 'Full screen';
 });
 $('fullscreen').onclick = async () => { try { if(document.fullscreenElement) await document.exitFullscreen(); else await $('viewer').requestFullscreen(); } catch { error('Full screen is unavailable. Rotate the phone for a larger replay.'); } };

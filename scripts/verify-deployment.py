@@ -36,9 +36,18 @@ for attempt in range(18):
         scripts = re.findall(r'<script[^>]*src="([^"]+)"', html)
         assert scripts
         js = fetch(scripts[0].removeprefix('./')).decode()
-        assert all(text in js for text in ['Running Camera', 'Record &amp; Review', 'livePreview', 'ci-vr-v4-192.png', 'fsScrub', 'trackBar', 'Clear path', 'screenStart', 'Turn camera on', 'Analyze gallery video', 'galleryFile', 'replayViewport', 'zoomIn', 'zoomReset', 'last confirmed dot'])
+        assert all(text in js for text in ['Running Camera', 'Record &amp; Review', 'livePreview', 'ci-vr-v4-192.png', 'fsScrub', 'trackBar', 'Clear path', 'screenStart', 'Turn camera on', 'Analyze gallery video', 'galleryFile', 'replayViewport', 'zoomIn', 'zoomReset', 'last confirmed dot', 'prevFrame', 'nextFrame', 'Fine scrub', 'tvView', 'Whole video preserved'])
+        # Also verify the lazy local frame-indexing bundle and CSS, not just the
+        # entry bundle referenced by the HTML.
+        chunks = set(re.findall(r'import\("\./([^"/]+\.js)"\)', js))
+        assert chunks, 'local frame-indexing bundle referenced'
+        for chunk in chunks:
+            data = fetch('assets/' + chunk)
+            assert b'metadataOnly' in data and b'getPrimaryVideoTrack' in data, chunk
+        for stylesheet in re.findall(r'<link[^>]*href="(\./assets/[^"/]+\.css)"', html):
+            assert fetch(stylesheet.removeprefix('./')), stylesheet
         print('PASS: live Pages commit', COMMIT)
-        print('PASS: live HTML, application bundle, three manifests, launch URL, favicon, Apple touch icon, and both CI/VR icon sizes match this commit.')
+        print('PASS: live HTML, all application bundles/CSS, manifests, launch URL, favicon, Apple touch icon, and both CI/VR icon sizes match this commit.')
         for icon in manifest['icons']:
             print(icon['src'], hashlib.sha256((ROOT/'public'/icon['src']).read_bytes()).hexdigest())
         break

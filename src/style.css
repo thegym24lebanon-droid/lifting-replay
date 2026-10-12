@@ -14,3 +14,20 @@
 
 #replayViewport{position:absolute;inset:0;overflow:hidden}#replayViewport.zoom-enabled{touch-action:none}#replayViewport canvas{display:block;transform-origin:center center;will-change:transform}
 .bar-tools>div{flex-wrap:wrap}.bar-tools .zoom-tools{display:flex;gap:4px;align-items:center;margin-left:auto;pointer-events:auto}.zoom-tools button{padding:6px 10px;min-width:36px;min-height:36px}.zoom-tools output{font-size:11px;min-width:26px;text-align:center;color:#aee8f7}
+
+.frame-controls{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 0 8px}.frame-controls button{font-size:11px;padding:6px 10px;min-height:38px}.frame-controls span{margin-left:auto;font-size:11px;color:#aebec8;font-variant-numeric:tabular-nums}.frame-controls button[aria-pressed=true]{border-color:#20c7ef;color:#49d4f5}
+.viewer:fullscreen .viewer-bottom{bottom:194px}.viewer:fullscreen #livePreview:not([hidden]){bottom:246px}.viewer:fullscreen.live-main #livePreview{bottom:0}
+@media(max-width:390px){.frame-controls span{font-size:10px}.frame-controls button{padding:6px 8px}.fullscreen-transport{padding:8px}}
+
+.display-actions{display:flex;gap:6px;align-items:center}#hideTVControls,#showTVControls,#tvHint{display:none}
+body.tv-view-open{overflow:hidden}.viewer.tv-mode{position:fixed;inset:0;width:100vw;height:100dvh;max-height:none;aspect-ratio:auto;border:0;border-radius:0;z-index:50}.viewer.tv-mode .fullscreen-transport{display:block;position:absolute;bottom:max(10px,env(safe-area-inset-bottom));left:12px;right:12px;padding:8px 12px;background:#071017e8;border-radius:10px}.viewer.tv-mode .viewer-bottom{bottom:194px}.viewer.tv-mode #hideTVControls{display:block}
+.viewer.tv-mode #tvHint{display:block;position:absolute;left:12px;bottom:238px;margin:0;max-width:420px;font-size:11px;line-height:1.4;color:#b4d8e8;background:#071017e8;padding:6px 8px;border-radius:6px;pointer-events:none}
+.viewer.tv-controls-hidden .viewer-top,.viewer.tv-controls-hidden .viewer-bottom,.viewer.tv-controls-hidden .bar-tools,.viewer.tv-controls-hidden .fullscreen-transport,.viewer.tv-controls-hidden #livePreview,.viewer.tv-controls-hidden #tvHint{visibility:hidden;pointer-events:none}
+.viewer.tv-controls-hidden #showTVControls{display:block;position:absolute;right:12px;bottom:12px;min-height:40px;background:#071017a8;font-size:11px}
+@media(max-width:480px){.display-actions{gap:4px}.display-actions button{font-size:10px;padding:8px}.viewer.tv-mode .viewer-top .viewer-state{gap:4px}.viewer.tv-mode .viewer-top #badge{font-size:8px;padding:6px}.viewer.tv-mode .fullscreen-brand{width:24px;height:24px}}
+@media(orientation:landscape){.viewer.tv-mode #tvHint{display:none}}
+.viewer:is(:fullscreen,.tv-mode).placing-bar .fullscreen-transport,.viewer:is(:fullscreen,.tv-mode).placing-bar .viewer-bottom{visibility:hidden;pointer-events:none}
+.viewer.tv-controls-hidden.live-main #livePreview{visibility:visible}
+.viewer.tv-mode .fullscreen-brand{display:block}.viewer.tv-mode .screen-actions{display:flex;gap:6px;flex-shrink:0;align-items:center}.viewer.tv-mode #screenStop:not([hidden]){display:block}.viewer.tv-mode .viewer-bottom>span{min-width:0;max-width:40%;overflow-wrap:anywhere}
+.viewer.tv-mode #screenError{display:block;position:absolute;top:132px;left:12px;right:12px;margin:0;padding:10px;border:1px solid #9f6654;border-radius:8px;background:#38271ff2;color:#ffe0cf;font-size:12px;line-height:1.4;max-height:calc(100% - 285px);overflow:auto}.viewer.tv-mode #livePreview:not([hidden]){bottom:246px}.viewer.tv-mode.live-main #livePreview{bottom:0}
+@media(max-width:480px){.viewer.tv-mode .viewer-top #badge{display:none}.viewer.tv-mode .screen-actions button{font-size:11px;padding:8px 10px}}
