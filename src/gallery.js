@@ -53,7 +53,7 @@ export class GalleryClip {
       const target = Math.max(0, Math.min(this.duration - 0.001, time));
       if (Math.abs(this.decoder.currentTime - target) > 0.0001) this.decoder.currentTime = target;
       await ready(this.decoder, 'seeked', () => !this.decoder.seeking && this.decoder.readyState >= 2, this.controller.signal);
-      this.canvas.width = Math.min(480, this.decoder.videoWidth);
+      this.canvas.width = Math.min(640, this.decoder.videoWidth);
       this.canvas.height = Math.round(this.decoder.videoHeight * this.canvas.width / this.decoder.videoWidth);
       this.context.drawImage(this.decoder, 0, 0, this.canvas.width, this.canvas.height);
       const rgba = this.context.getImageData(0, 0, this.canvas.width, this.canvas.height).data;

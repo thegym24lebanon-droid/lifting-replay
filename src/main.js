@@ -2,6 +2,7 @@ import './style.css';
 import { ReplayBuffer, delayedTime } from './buffer.js';
 import { BarPath, videoPoint } from './tracker.js';
 import { GalleryClip, analysisFrames } from './gallery.js';
+import { ReplayZoom } from './zoom.js';
 const $ = id => document.getElementById(id);
 let saved = {}; try { saved = JSON.parse(localStorage.getItem('lifting-settings') || '{}'); } catch {}
 const settings = {delay: Math.max(5, Math.min(30, Number(saved.delay) || 10)), facing: saved.facing === 'user' ? 'user' : 'environment'};
@@ -25,7 +26,25 @@ const screenError = document.createElement('p'); screenError.id = 'screenError';
 $('viewer').append(screenError);
 const capture = document.createElement('canvas');
 const trackCanvas = document.createElement('canvas');
-let selectingBar = false, reportedLoss = null, trackingWork = false;
+let selectingBar = false, reportedLoss = null, trackingWork = false, draftPoint = null, trackingHold = null;
+const viewport = document.createElement('div'); viewport.id = 'replayViewport';
+$('replay').before(viewport); viewport.append($('replay'));
+const zoomTools = document.createElement('div'); zoomTools.className = 'zoom-tools';
+zoomTools.innerHTML = '<button id="zoomOut" aria-label="Zoom out">−</button><output id="zoomLevel" aria-label="Zoom level">1×</output><button id="zoomIn" aria-label="Zoom in">+</button><button id="zoomReset" aria-label="Reset zoom">Reset</button>';
+document.querySelector('.bar-tools>div').append(zoomTools);
+const zoom = new ReplayZoom(viewport, $('replay'), {
+  enabled: () => hasFootage() && !starting && !loadingGallery && !$('viewer').classList.contains('live-main'),
+  selecting: () => selectingBar,
+  draft: screen => {
+    draftPoint = screen ? pointAt(screen) : null;
+    lastFrame = null;
+  },
+  select: screen => selectBarAt(screen),
+  changed: scale => { $('zoomLevel').textContent = `${Number(scale.toFixed(1))}×`; }
+});
+$('zoomIn').onclick = () => zoom.zoom(1.5);
+$('zoomOut').onclick = () => zoom.zoom(1/1.5);
+$('zoomReset').onclick = () => zoom.reset();
 const barPath = new BarPath(async frame => {
   if (frame.gallery) {
     if (!gallery) throw new Error('Gallery video closed.');
@@ -33,7 +52,7 @@ const barPath = new BarPath(async frame => {
   }
   const bitmap = await createImageBitmap(frame.blob);
   try {
-    trackCanvas.width = Math.min(480,bitmap.width);
+    trackCanvas.width = Math.min(640,bitmap.width);
     trackCanvas.height = Math.round(bitmap.height*trackCanvas.width/bitmap.width);
     const ctx=trackCanvas.getContext('2d',{willReadFrequently:true});
     ctx.drawImage(bitmap,0,0,trackCanvas.width,trackCanvas.height);
@@ -44,15 +63,22 @@ const barPath = new BarPath(async frame => {
   } finally { bitmap.close(); }
 });
 function trackMessage(message) { $('trackStatus').textContent=message; $('trackStatus').hidden=!message; }
-function clearTracking() {barPath.clear();selectingBar=false;reportedLoss=null;lastFrame=null;$('clearTrack').hidden=true;$('trackBar').textContent='Track bar';$('replay').classList.remove('select-bar');trackMessage('');}
+function clearTracking() {barPath.clear();trackingHold=null;selectingBar=false;draftPoint=null;reportedLoss=null;lastFrame=null;$('clearTrack').hidden=true;$('trackBar').textContent='Track bar';$('replay').classList.remove('select-bar');trackMessage('');}
 function paintPath(canvas,time) {
-  const points=barPath.points.filter(p=>p.time>=firstTime());if(!points.length)return;
+  const points=barPath.points.filter(p=>p.time>=firstTime());
   const ctx=canvas.getContext('2d');
   for(const [color,width] of [['#000',6],['#00e5ff',3]]) {
     ctx.strokeStyle=color;ctx.lineWidth=width;ctx.lineJoin='round';ctx.beginPath();
     let segment=null;for(const p of points){if(p.segment!==segment)ctx.moveTo(p.x*canvas.width,p.y*canvas.height);else ctx.lineTo(p.x*canvas.width,p.y*canvas.height);segment=p.segment;}ctx.stroke();
   }
-  const tip=barPath.visible(time,firstTime()).at(-1);if(!tip || time-tip.time>.35)return;ctx.beginPath();ctx.arc(tip.x*canvas.width,tip.y*canvas.height,6,0,Math.PI*2);ctx.fillStyle='#ffe45c';ctx.fill();ctx.lineWidth=2;ctx.strokeStyle='#000';ctx.stroke();
+  const tip=barPath.visible(time+.001,firstTime()).at(-1);
+  if(tip) { ctx.beginPath();ctx.arc(tip.x*canvas.width,tip.y*canvas.height,6,0,Math.PI*2);ctx.fillStyle='#ffe45c';ctx.fill();ctx.lineWidth=2;ctx.strokeStyle='#000';ctx.stroke(); }
+  if(draftPoint && Math.abs(draftPoint.frame.time-time)<.01) {
+    const fit=Math.min(viewport.clientWidth/canvas.width,viewport.clientHeight/canvas.height)*zoom.state.scale;
+    const x=draftPoint.x*canvas.width,y=draftPoint.y*canvas.height,r=9/Math.max(.01,fit);
+    ctx.lineWidth=2/Math.max(.01,fit);ctx.strokeStyle='#ffe45c';ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(x-r/2,y);ctx.lineTo(x+r/2,y);ctx.moveTo(x,y-r/2);ctx.lineTo(x,y+r/2);ctx.stroke();
+  }
 }
 
 const seconds = () => (performance.now() - origin) / 1000;
@@ -61,9 +87,9 @@ function error(message) { $('error').textContent = $('screenError').textContent 
 function firstTime() { return gallery ? 0 : buffer.first; }
 function lastTime() { return gallery ? gallery.duration : buffer.last; }
 function hasFootage() { return !!gallery || buffer.frames.length > 0; }
-function controls(enabled) { for (const id of ['back','pause','forward','scrub','speed','fsScrub','fsPause','fsSpeed','trackBar']) $(id).disabled = !enabled; $('live').disabled = $('fsLive').disabled = !enabled || !running || mode !== 'running'; }
+function controls(enabled) { for (const id of ['back','pause','forward','scrub','speed','fsScrub','fsPause','fsSpeed','trackBar','zoomIn','zoomOut','zoomReset']) $(id).disabled = !enabled; viewport.classList.toggle('zoom-enabled', enabled); $('live').disabled = $('fsLive').disabled = !enabled || !running || mode !== 'running'; }
 function layout(warming = false) {
-  $('livePreview').hidden = !running;
+  $('livePreview').hidden = !running || selectingBar || zoom.state.scale>1;
   $('viewer').classList.toggle('live-main', running && (mode === 'record' || warming));
   $('screenStop').hidden = !running;
   $('live').hidden = $('fsLive').hidden = mode === 'record' || !!gallery;
@@ -90,7 +116,7 @@ async function loadGallery(file) {
   try {
     await candidate.load();
     if (pendingGallery !== candidate) { candidate.close(); return; }
-    ++session; clearTracking(); gallery?.close(); gallery = candidate;
+    ++session; clearTracking(); zoom.reset(); gallery?.close(); gallery = candidate;
     buffer.clear(); playhead = 0; paused = true; speed = 1; $('speed').value = '1';
     $('empty').hidden = true; $('stop').disabled = true;
     candidate.video.addEventListener('error', () => { if (gallery === candidate) { gallery.pause(); paused = true; error('This video cannot be played in this browser. Try an H.264 MP4 file.'); } });
@@ -133,7 +159,7 @@ async function start() {
     stream = acquired; $('camera').srcObject = stream;
     await $('camera').play();
     if (token !== session) return;
-    clearTracking(); gallery?.close(); gallery = null; buffer.clear(); buffer.seconds = mode === 'running' ? 90 : Infinity; buffer.maxBytes = (mode === 'running' ? 96 : 128) * 1024 * 1024; buffer.retainAll = mode === 'record';
+    clearTracking(); zoom.reset(); gallery?.close(); gallery = null; buffer.clear(); buffer.seconds = mode === 'running' ? 90 : Infinity; buffer.maxBytes = (mode === 'running' ? 96 : 128) * 1024 * 1024; buffer.retainAll = mode === 'record';
     countdown = null; origin = performance.now(); previousTick = origin; playhead = 0; follow = mode === 'running'; paused = false; speed = 1; $('speed').value = '1'; lastFrame = null;
     $('replay').getContext('2d').clearRect(0,0,$('replay').width,$('replay').height);
     running = true; $('empty').hidden = true; $('stop').disabled = false; $('start').textContent = mode === 'record' ? 'Recording' : 'Camera running'; controls(false); layout(true);
@@ -145,6 +171,7 @@ async function start() {
   } finally { if (token === session) { starting = false; $('start').disabled = running; $('captureMode').disabled = running; $('facing').disabled = running; } }
 }
 function stop(autoReplay = true) {
+  trackingHold = null;
   const wasRunning = running, stoppedAt = performance.now();
   ++session; starting = false; running = false; clearInterval(timer); stream?.getTracks().forEach(t=>t.stop()); stream = null; $('camera').srcObject = null;
   wake?.release().catch(()=>{}); wake = null; follow = false; paused = true;
@@ -155,21 +182,41 @@ function stop(autoReplay = true) {
   if (!hasFootage()) { $('empty').hidden = false; $('empty').textContent = 'No footage captured · start again'; }
   controls(hasFootage()); layout();
 }
-function manual() { follow = false; countdown = null; }
+function manual(cancelHold = true) { follow = false; countdown = null; if (cancelHold && trackingHold) { trackingHold = null; paused = true; gallery?.pause(); } }
 function seek(value) { barPath.cancel(); manual(); playhead = Math.max(firstTime(), Math.min(lastTime(), value)); if (gallery) gallery.seek(playhead); }
 function traceTo(frame) {
-  if (!frame || trackingWork || selectingBar || !barPath.tracker || barPath.lostAt!==null || frame.time<=barPath.time) return;
-  if (gallery && !paused && frame.time - barPath.time < 1/15) return;
+  if (!frame || trackingWork || selectingBar || !barPath.tracker || barPath.lostAt!==null) return;
+  const requested = Math.min(lastTime(), trackingHold?.target ?? frame.time + (paused ? 0 : .6));
+  const target = gallery ? { time: requested, gallery: true } : buffer.at(requested);
+  if (!target || target.time <= barPath.time + .00001) return;
+  if (gallery && !paused && target.time - barPath.time < 1/15) return;
   trackingWork=true;const token=session;
-  const frames = gallery ? analysisFrames(barPath.time, frame.time) : [...buffer.frames];
-  barPath.through(frames,frame.time).then(()=>{
+  const frames = gallery ? analysisFrames(barPath.time, target.time) : [...buffer.frames];
+  barPath.through(frames,target.time).then(()=>{
     if(token!==session)return;
     lastFrame=null;
     if(barPath.lostAt!==null && reportedLoss!==barPath.lostAt) {
-      reportedLoss=barPath.lostAt;manual();paused=true;playhead=Math.max(firstTime(),barPath.time); if (gallery) { gallery.pause(); gallery.seek(playhead); }
-      trackMessage('Tracking lost · reselect the bar to continue');
+      reportedLoss=barPath.lostAt;
+      if (playhead>=barPath.time-.01 || trackingHold) pauseAtReliablePoint();
+      trackMessage('Tracking lost · last confirmed dot kept. Reselect the bar to continue.');
+    } else if (trackingHold && barPath.time >= Math.min(lastTime(),trackingHold.target)-.01) {
+      trackingHold = null;
+      if (gallery) { const clip=gallery; clip.play(speed).catch(e=>{if(gallery===clip&&e.name!=='AbortError')error('Could not resume this video. Tap Play to try again.');}); }
     }
-  }).catch(()=>{if(token===session){barPath.cancel();barPath.lostAt=frame.time;reportedLoss=frame.time;manual();paused=true;gallery?.pause();trackMessage('Tracking unavailable · reselect the bar');}}).finally(()=>{trackingWork=false;});
+  }).catch(()=>{if(token===session){barPath.cancel();barPath.lostAt=frame.time;reportedLoss=frame.time;pauseAtReliablePoint();trackMessage('Tracking unavailable · last confirmed dot kept. Reselect the bar.');}}).finally(()=>{trackingWork=false;});
+}
+function pauseAtReliablePoint() {
+  trackingHold=null;manual();paused=true;playhead=Math.max(firstTime(),barPath.time);
+  if (gallery) { gallery.pause();gallery.seek(playhead); }
+}
+function keepDotAligned() {
+  if (selectingBar || paused || !barPath.tracker) return;
+  if (barPath.lostAt!==null && playhead>barPath.time+.01) { pauseAtReliablePoint(); return; }
+  if (!trackingHold && barPath.lostAt===null && playhead>barPath.time+.12) {
+    trackingHold={target:Math.min(lastTime(),playhead+.4)};
+    playhead=Math.max(firstTime(),barPath.time);
+    if (gallery) { gallery.pause();gallery.seek(playhead); }
+  }
 }
 async function draw(frame) {
   if (!frame || drawing || frame === lastFrame) return;
@@ -186,23 +233,29 @@ function tick(now) {
   const warming = running && mode === 'running' && follow && seconds() < settings.delay;
   if (countdown !== null && now >= countdown) { countdown = null; playhead = buffer.first; paused = false; }
   if (gallery) {
-    playhead = gallery.video.currentTime; paused = gallery.video.paused;
+    const finishing = !paused && gallery.video.ended;
+    playhead = gallery.video.currentTime; paused = gallery.video.paused && !trackingHold && !finishing;
+    keepDotAligned();
+    if (!trackingHold && gallery.video.paused) paused = true;
     if (!gallery.video.seeking) { traceTo({ time: playhead, gallery: true }); drawGallery(); }
     controls(!loadingGallery && !starting && !gallery.video.error);
     $('trackBar').disabled ||= gallery.video.seeking || gallery.video.readyState < 2;
     for (const id of ['scrub','fsScrub']) { $(id).min = 0; $(id).max = gallery.duration; $(id).value = playhead; }
     $('position').textContent = $('fsPosition').textContent = `${fmt(playhead)} / ${fmt(gallery.duration)}`;
   } else if (buffer.frames.length) {
-    if (follow && running) playhead = delayedTime(seconds(),settings.delay,buffer.first);
-    else if (!paused && !(running && mode === 'record')) { playhead = Math.min(buffer.last,playhead + dt * speed); if(!running && playhead >= buffer.last) paused = true; }
+    if (follow && running && !trackingHold) playhead = delayedTime(seconds(),settings.delay,buffer.first);
+    else if (!paused && !trackingHold && !(running && mode === 'record')) playhead = Math.min(buffer.last,playhead + dt * speed);
     playhead = Math.max(buffer.first,Math.min(buffer.last,playhead));
+    keepDotAligned();
+    if (!running && !trackingHold && playhead >= buffer.last) paused = true;
     if(!warming && !(running && mode === 'record')) { traceTo(buffer.at(playhead)); draw(buffer.at(playhead)); }
     controls(!warming && !(running && mode === 'record'));
     for (const id of ['scrub','fsScrub']) { $(id).min = buffer.first; $(id).max = buffer.last; $(id).value = playhead; }
     $('position').textContent = $('fsPosition').textContent = `${fmt(playhead-buffer.first)} / ${fmt(buffer.last-buffer.first)}`;
   }
   barPath.prune(firstTime());
-  if(barPath.busy && !selectingBar)trackMessage('Tracing recorded frames…');
+  if(trackingHold && !selectingBar)trackMessage('Tracking catching up · holding the last confirmed dot.');
+  else if(barPath.busy && !selectingBar)trackMessage('Tracing recorded frames…');
   else if(barPath.tracker && barPath.lostAt===null && !selectingBar)trackMessage('Experimental bar path');
   layout(warming);
   $('pause').textContent = $('fsPause').textContent = paused ? 'Play' : 'Pause';
@@ -218,22 +271,26 @@ $('trackBar').onclick = () => {
   // Anchor selection to the frame actually visible, not an undrawn next tick.
   if(lastFrame) { playhead=lastFrame.time; if (gallery) gallery.seek(playhead); }
   $('replay').classList.add('select-bar');$('clearTrack').hidden=false;
-  trackMessage('Tap the bar end. Keep the camera still.');
+  draftPoint=null;
+  trackMessage('Pinch to zoom. Touch and adjust the dot on the bar end; release to set it.');
 };
 $('clearTrack').onclick = clearTracking;
-$('replay').onpointerdown = async event => {
-  if(!selectingBar || !lastFrame || event.button>0)return;
-  event.preventDefault();event.stopPropagation();
-  const canvas=$('replay');const point=videoPoint(event.clientX,event.clientY,canvas.getBoundingClientRect(),canvas.width,canvas.height);
-  if(!point)return;
-  const frame=lastFrame;
+function pointAt(screen) {
+  const frame=lastFrame ?? draftPoint?.frame;
+  if (!frame) return null;
+  const canvas=$('replay'), point=videoPoint(screen.x,screen.y,canvas.getBoundingClientRect(),canvas.width,canvas.height);
+  return point ? { frame, x:point.x/canvas.width,y:point.y/canvas.height } : null;
+}
+async function selectBarAt(screen) {
+  if(!selectingBar)return;
+  const point=pointAt(screen); if(!point)return;
   try {
-    if(await barPath.select(frame,point.x/canvas.width,point.y/canvas.height)) {
-      selectingBar=false;reportedLoss=null;lastFrame=null;canvas.classList.remove('select-bar');$('trackBar').textContent='Reselect bar';
+    if(await barPath.select(point.frame,point.x,point.y)) {
+      selectingBar=false;draftPoint=null;reportedLoss=null;lastFrame=null;$('replay').classList.remove('select-bar');$('trackBar').textContent='Reselect bar';
       trackMessage('Bar selected · play or scrub to trace');
     }
   } catch(e) {trackMessage(e.message);}
-};
+}
 $('start').onclick = $('screenStart').onclick = start; $('stop').onclick = () => stop(); $('screenStop').onclick = () => stop();
 $('openGallery').onclick = $('screenGallery').onclick = openGallery;
 $('galleryFile').onchange = () => loadGallery($('galleryFile').files[0]);
@@ -268,6 +325,7 @@ $('fsScrub').onpointercancel = $('fsScrub').onlostpointercapture = () => { scrub
 
 $('back').onclick = () => seek(playhead-5); $('forward').onclick = () => seek(playhead+5);
 $('pause').onclick = async () => {
+  if (trackingHold) { manual(); paused=true;gallery?.pause();barPath.cancel();return; }
   manual();
   if (gallery) {
     const clip = gallery;
@@ -278,8 +336,8 @@ $('pause').onclick = async () => {
   }
   if(paused && playhead >= buffer.last) playhead = buffer.first; paused = !paused;
 };
-$('speed').onchange = () => { speed = Number($('speed').value); manual(); if (gallery) gallery.video.playbackRate = speed; };
-$('live').onclick = () => { if (running && mode === 'running') { follow = true; paused = false; speed = 1; $('speed').value = '1'; } };
+$('speed').onchange = () => { speed = Number($('speed').value); manual(false); if (gallery) gallery.video.playbackRate = speed; };
+$('live').onclick = () => { if (running && mode === 'running') { trackingHold=null;follow = true; paused = false; speed = 1; $('speed').value = '1'; } };
 $('fsPause').onclick = () => $('pause').click();
 $('fsSpeed').onchange = () => { $('speed').value = $('fsSpeed').value; $('speed').onchange(); };
 $('fsLive').onclick = () => $('live').click();
@@ -290,7 +348,7 @@ document.addEventListener('fullscreenchange',() => {
 $('fullscreen').onclick = async () => { try { if(document.fullscreenElement) await document.exitFullscreen(); else await $('viewer').requestFullscreen(); } catch { error('Full screen is unavailable. Rotate the phone for a larger replay.'); } };
 $('tvHelp').onclick = () => $('help').showModal(); $('closeHelp').onclick = () => $('help').close();
 $('closeInstall').onclick = () => $('installHelp').close();
-document.addEventListener('visibilitychange',()=>{ if(document.hidden) { gallery?.pause(); barPath.cancel(); } if(document.hidden && (running || starting)) { stop(false); error('Capture stopped because the app went into the background. Retained footage is ready to review.'); } else if(document.hidden) { countdown = null; paused = true; } });
+document.addEventListener('visibilitychange',()=>{ if(document.hidden) { manual();gallery?.pause(); barPath.cancel(); } if(document.hidden && (running || starting)) { stop(false); error('Capture stopped because the app went into the background. Retained footage is ready to review.'); } else if(document.hidden) { countdown = null; paused = true; } });
 window.addEventListener('pagehide',() => { barPath.cancel(); stop(false); pendingGallery?.close(); pendingGallery = null; loadingGallery = false; });
 requestAnimationFrame(tick);
 let installPrompt;

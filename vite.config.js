@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [{
     name: 'deployment-version',
     generateBundle() {
-      this.emitFile({type:'asset',fileName:'version.json',source:JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),release:'gallery8'})+'\n'});
+      this.emitFile({type:'asset',fileName:'version.json',source:JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),release:'zoom9'})+'\n'});
     }
   }]
 });
