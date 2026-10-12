@@ -36,7 +36,7 @@ for attempt in range(18):
         scripts = re.findall(r'<script[^>]*src="([^"]+)"', html)
         assert scripts
         js = fetch(scripts[0].removeprefix('./')).decode()
-        assert all(text in js for text in ['Running Camera', 'Record &amp; Review', 'livePreview', 'ci-vr-v4-192.png'])
+        assert all(text in js for text in ['Running Camera', 'Record &amp; Review', 'livePreview', 'ci-vr-v4-192.png', 'fsScrub'])
         print('PASS: live Pages commit', COMMIT)
         print('PASS: live HTML, application bundle, three manifests, launch URL, favicon, Apple touch icon, and both CI/VR icon sizes match this commit.')
         for icon in manifest['icons']:
