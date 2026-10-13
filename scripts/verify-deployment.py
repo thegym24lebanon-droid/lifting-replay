@@ -20,6 +20,7 @@ for attempt in range(18):
     try:
         version = json.loads(fetch('version.json'))
         assert version['commit'] == COMMIT, version
+        assert version['release'] == 'tracker-scrub11', version
         html = fetch('').decode()
         assert './video-replay-v5.webmanifest' in html
         assert '<title>Video Replay</title>' in html
@@ -36,7 +37,7 @@ for attempt in range(18):
         scripts = re.findall(r'<script[^>]*src="([^"]+)"', html)
         assert scripts
         js = fetch(scripts[0].removeprefix('./')).decode()
-        assert all(text in js for text in ['Running Camera', 'Record &amp; Review', 'livePreview', 'ci-vr-v4-192.png', 'fsScrub', 'trackBar', 'Clear path', 'screenStart', 'Turn camera on', 'Analyze gallery video', 'galleryFile', 'replayViewport', 'zoomIn', 'zoomReset', 'last confirmed dot', 'prevFrame', 'nextFrame', 'Fine scrub', 'tvView', 'Whole video preserved'])
+        assert all(text in js for text in ['Running Camera', 'Record &amp; Review', 'livePreview', 'ci-vr-v4-192.png', 'fsScrub', 'trackBar', 'Clear path', 'screenStart', 'Turn camera on', 'Analyze gallery video', 'galleryFile', 'replayViewport', 'zoomIn', 'zoomReset', 'last confirmed dot', 'prevFrame', 'nextFrame', 'Fine scrub', 'tvView', 'Whole video preserved', 'trackingFrames', 'pendingSeek', 'Pull down while dragging'])
         # Also verify the lazy local frame-indexing bundle and CSS, not just the
         # entry bundle referenced by the HTML.
         chunks = set(re.findall(r'import\("\./([^"/]+\.js)"\)', js))

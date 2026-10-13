@@ -31,3 +31,4 @@ body.tv-view-open{overflow:hidden}.viewer.tv-mode{position:fixed;inset:0;width:1
 .viewer.tv-mode .fullscreen-brand{display:block}.viewer.tv-mode .screen-actions{display:flex;gap:6px;flex-shrink:0;align-items:center}.viewer.tv-mode #screenStop:not([hidden]){display:block}.viewer.tv-mode .viewer-bottom>span{min-width:0;max-width:40%;overflow-wrap:anywhere}
 .viewer.tv-mode #screenError{display:block;position:absolute;top:132px;left:12px;right:12px;margin:0;padding:10px;border:1px solid #9f6654;border-radius:8px;background:#38271ff2;color:#ffe0cf;font-size:12px;line-height:1.4;max-height:calc(100% - 285px);overflow:auto}.viewer.tv-mode #livePreview:not([hidden]){bottom:246px}.viewer.tv-mode.live-main #livePreview{bottom:0}
 @media(max-width:480px){.viewer.tv-mode .viewer-top #badge{display:none}.viewer.tv-mode .screen-actions button{font-size:11px;padding:8px 10px}}
+#scrub,#fsScrub{touch-action:none}

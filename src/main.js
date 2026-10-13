@@ -1,9 +1,9 @@
 import './style.css';
 import { ReplayBuffer, delayedTime } from './buffer.js';
 import { BarPath, videoPoint } from './tracker.js';
-import { GalleryClip, analysisFrames } from './gallery.js';
+import { GalleryClip } from './gallery.js';
 import { ReplayZoom } from './zoom.js';
-import { frameIndex, snapFrame, adjacentFrame } from './frames.js';
+import { frameIndex, snapFrame, adjacentFrame, FrameJog } from './frames.js';
 const $ = id => document.getElementById(id);
 let saved = {}; try { saved = JSON.parse(localStorage.getItem('lifting-settings') || '{}'); } catch {}
 const settings = {delay: Math.max(5, Math.min(30, Number(saved.delay) || 10)), facing: saved.facing === 'user' ? 'user' : 'environment', fineScrub: saved.fineScrub !== false};
@@ -86,6 +86,7 @@ $('zoomIn').onclick = () => zoom.zoom(1.5);
 $('zoomOut').onclick = () => zoom.zoom(1/1.5);
 $('zoomReset').onclick = () => zoom.reset();
 const barPath = new BarPath(async frame => {
+  if (frame.image) return frame.image;
   if (frame.gallery) {
     if (!gallery) throw new Error('Gallery video closed.');
     return gallery.read(frame.time);
@@ -244,15 +245,16 @@ function stop(autoReplay = true) {
   controls(hasFootage()); layout();
 }
 function manual(cancelHold = true) { follow = false; countdown = null; if (cancelHold && trackingHold) { trackingHold = null; paused = true; gallery?.pause(); } }
-function seek(value, exactFrame = false) { barPath.cancel(); manual(); playhead = Math.max(firstTime(), Math.min(lastTime(), value)); if (gallery) { if (exactFrame) gallery.seekFrame(playhead); else gallery.seek(playhead); } }
+function seek(value, exactFrame = false) { manual(); playhead = Math.max(firstTime(), Math.min(lastTime(), value)); if (gallery) { if (exactFrame) gallery.seekFrame(playhead); else gallery.seek(playhead); } }
+function trackingEnd() { return gallery?.frameTimes?.at(-1) ?? lastTime(); }
 function traceTo(frame) {
   if (!frame || trackingWork || selectingBar || !barPath.tracker || barPath.lostAt!==null) return;
-  const requested = Math.min(lastTime(), trackingHold?.target ?? frame.time + (paused ? 0 : .6));
-  const target = gallery ? { time: requested, gallery: true } : buffer.at(requested);
+  const times=frameTimes(), limit=times.length ? times[Math.min(times.length-1,frameIndex(times,barPath.time)+12)] : barPath.time+.25;
+  const requested = Math.min(trackingEnd(), trackingHold?.target ?? frame.time + (paused ? 0 : .6),limit);
+  const target = gallery ? { time: gallery.frameTimes?.[frameIndex(gallery.frameTimes,requested)] ?? requested, gallery: true } : buffer.at(requested);
   if (!target || target.time <= barPath.time + .00001) return;
-  if (gallery && !paused && target.time - barPath.time < 1/15) return;
   trackingWork=true;const token=session;
-  const frames = gallery ? analysisFrames(barPath.time, target.time) : [...buffer.frames];
+  const frames = gallery ? gallery.trackingFrames(barPath.time, target.time) : [...buffer.frames];
   barPath.through(frames,target.time).then(()=>{
     if(token!==session)return;
     lastFrame=null;
@@ -260,7 +262,7 @@ function traceTo(frame) {
       reportedLoss=barPath.lostAt;
       if (playhead>=barPath.time-.01 || trackingHold) pauseAtReliablePoint();
       trackMessage('Tracking lost · last confirmed dot kept. Reselect the bar to continue.');
-    } else if (trackingHold && barPath.time >= Math.min(lastTime(),trackingHold.target)-.01) {
+    } else if (trackingHold && barPath.time >= Math.min(trackingEnd(),trackingHold.target)-.00001) {
       trackingHold = null;
       if (gallery) { const clip=gallery; clip.play(speed).catch(e=>{if(gallery===clip&&e.name!=='AbortError')error('Could not resume this video. Tap Play to try again.');}); }
     }
@@ -274,7 +276,7 @@ function keepDotAligned() {
   if (selectingBar || paused || !barPath.tracker) return;
   if (barPath.lostAt!==null && playhead>barPath.time+.01) { pauseAtReliablePoint(); return; }
   if (!trackingHold && barPath.lostAt===null && playhead>barPath.time+.12) {
-    trackingHold={target:Math.min(lastTime(),playhead+.4)};
+    trackingHold={target:Math.min(trackingEnd(),playhead+.4)};
     playhead=Math.max(firstTime(),barPath.time);
     if (gallery) { gallery.pause();gallery.seek(playhead); }
   }
@@ -295,10 +297,11 @@ function tick(now) {
   if (countdown !== null && now >= countdown) { countdown = null; playhead = buffer.first; paused = false; }
   if (gallery) {
     const finishing = !paused && gallery.video.ended;
-    playhead = gallery.video.currentTime; paused = gallery.video.paused && !trackingHold && !finishing;
+    playhead = gallery.time; paused = gallery.video.paused && !gallery.playPending && !trackingHold && !finishing;
     keepDotAligned();
-    if (!trackingHold && gallery.video.paused) paused = true;
-    if (!gallery.video.seeking) { traceTo({ time: playhead, gallery: true }); drawGallery(); }
+    if (!trackingHold && gallery.video.paused && !gallery.playPending) paused = true;
+    traceTo({ time: playhead, gallery: true });
+    if (!gallery.video.seeking) drawGallery();
     controls(!loadingGallery && !starting && !gallery.video.error);
     $('trackBar').disabled ||= gallery.video.seeking || gallery.video.readyState < 2;
     for (const id of ['scrub','fsScrub']) { $(id).min = 0; $(id).max = gallery.duration; $(id).value = playhead; }
@@ -365,14 +368,20 @@ $('galleryFile').onchange = () => loadGallery($('galleryFile').files[0]);
 $('captureMode').onchange = () => { mode = $('captureMode').value; countdown = null; $('delayTitle').textContent = mode === 'record' ? 'Replay after Stop' : 'Replay delay'; $('start').textContent = mode === 'record' ? (buffer.frames.length ? 'Record next' : 'Start recording') : 'Start camera'; layout(); };
 $('delay').oninput = () => { settings.delay = Math.max(5,Math.min(30,Number($('delay').value))); $('delayValue').textContent = `${settings.delay}s`; persist(); };
 $('facing').onchange = () => { settings.facing = $('facing').value; persist(); };
-function scrub(value) { seek(snapFrame(frameTimes(), value), true); paused = true; gallery?.pause(); }
-$('scrub').oninput = () => scrub(Number($('scrub').value));
-$('fsScrub').oninput = () => scrub(Number($('fsScrub').value));
+function scrub(value) { paused = true; gallery?.pause(); seek(snapFrame(frameTimes(), value), true); }
+for(const id of ['scrub','fsScrub']) $(id).oninput=()=>{
+  // Chrome can still emit native touch-slider input after a prevented pointer
+  // move. The captured gesture owns the value until release; don't let native
+  // whole-clip positioning override an individual frame jog.
+  if(scrubDrag) { $(id).value=playhead;return; }
+  scrub(Number($(id).value));
+};
 for (const prefix of ['', 'fs']) {
   const id = name => prefix ? prefix + name[0].toUpperCase() + name.slice(1) : name;
   $(id('prevFrame')).onclick = () => scrub(adjacentFrame(frameTimes(), playhead, -1));
   $(id('nextFrame')).onclick = () => scrub(adjacentFrame(frameTimes(), playhead, 1));
   $(id('fineScrub')).onclick = () => { settings.fineScrub = !settings.fineScrub; persist(); updateFrameControls(); };
+  $(id('fineScrub')).title='Slide the timeline to step frames. Pull down while dragging for finer control.';
 }
 // Fine scrubbing advances one real frame per 3px, independent of clip length.
 // Overview maps the whole timeline, but still snaps to presentation timestamps.
@@ -381,8 +390,7 @@ function dragScrub(event) {
   if (!scrubDrag || event.pointerId !== scrubDrag.id) return;
   event.preventDefault(); event.stopPropagation();
   if (scrubDrag.fine && scrubDrag.times.length) {
-    const offset = Math.trunc((event.clientX - scrubDrag.startX) / 3);
-    const index = Math.max(0, Math.min(scrubDrag.times.length-1, scrubDrag.index + offset));
+    const index = scrubDrag.jog.move(event.clientX,event.clientY);
     scrub(scrubDrag.times[index]);
   } else {
     const rect = scrubDrag.element.getBoundingClientRect();
@@ -396,7 +404,7 @@ for (const id of ['scrub','fsScrub']) {
     if (element.disabled || (event.pointerType === 'mouse' && event.button !== 0)) return;
     if (scrubDrag && scrubDrag.id !== event.pointerId) return;
     const times = frameTimes();
-    scrubDrag = { id:event.pointerId, element, first:firstTime(), last:lastTime(), startX:event.clientX, times, index:frameIndex(times,playhead), fine:settings.fineScrub };
+    scrubDrag = { id:event.pointerId, element, first:firstTime(), last:lastTime(), times, jog:new FrameJog(frameIndex(times,playhead),times.length,event.clientX,event.clientY), fine:settings.fineScrub };
     element.focus(); element.setPointerCapture(event.pointerId); dragScrub(event);
   };
   element.onpointermove = dragScrub;
@@ -422,7 +430,7 @@ $('pause').onclick = async () => {
   manual();
   if (gallery) {
     const clip = gallery;
-    if (!clip.video.paused) { clip.pause(); paused = true; return; }
+    if (!clip.video.paused || clip.playPending) { clip.pause(); paused = true; return; }
     if (playhead >= clip.duration - 0.01) clip.seek(0);
     try { await clip.play(speed); } catch (e) { if (gallery === clip && e.name !== 'AbortError') error('Could not play this video. Try an H.264 MP4 file in Chrome.'); }
     return;

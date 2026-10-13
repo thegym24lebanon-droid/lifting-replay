@@ -19,6 +19,21 @@ export function adjacentFrame(times, time, direction) {
   return times[index];
 }
 
+// Accumulate small movements without making the user retrace an overshoot at
+// either end. Pulling down changes precision without changing the chosen frame.
+export class FrameJog {
+  constructor(index, count, x, y) { this.index=index; this.count=count; this.x=x; this.y=y; this.remainder=0; }
+  move(x, y) {
+    const precision = 3 * (1 + Math.min(4, Math.max(0, y-this.y)/50));
+    this.remainder += (x-this.x)/precision; this.x=x;
+    const steps=Math.trunc(this.remainder);
+    this.remainder-=steps;
+    this.index=Math.max(0,Math.min(this.count-1,this.index+steps));
+    if ((this.index===0 && this.remainder<0) || (this.index===this.count-1 && this.remainder>0)) this.remainder=0;
+    return this.index;
+  }
+}
+
 export async function videoFrameTimes(file, duration, signal) {
   // Metadata-only demuxing does not decode or retain the video frame payloads.
   const { Input, BlobSource, EncodedPacketSink, MP4, QTFF, WEBM } = await import('mediabunny');

@@ -14,3 +14,9 @@ test('rewinding or a stationary cursor does not create tracking frames', () => {
   assert.deepEqual([...analysisFrames(4, 2)], []);
   assert.deepEqual([...analysisFrames(4, 4)], []);
 });
+test('indexed gallery tracking visits every real frame during a large jump',()=>{
+  const times=Float64Array.from([0,.016,.033,.05,.071,.087,.104,.13,.15]);
+  assert.deepEqual([...analysisFrames(.0001,.13,1/15,times)].map(f=>f.time),Array.from(times).slice(1,8));
+  assert.deepEqual([...analysisFrames(.071,.09,1/15,times)].map(f=>f.time),[.087]);
+  assert.deepEqual([...analysisFrames(.13,.04,1/15,times)],[]);
+});

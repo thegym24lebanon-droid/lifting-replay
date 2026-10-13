@@ -52,11 +52,29 @@ test('a smooth bar end uses its outline without displacing the selected center',
  assert.ok(tracker.radius>7);const point=tracker.step(circle(44,47));
  assert.ok(point);assert.equal(point.x,44);assert.equal(point.y,47);
 });
+test('fine detail between sparse sample positions is not discarded',()=>{
+ const cross=(x,y)=>{const data=new Uint8Array(W*H).fill(30);for(let d=-6;d<=6;d++){data[y*W+x+d]=230;data[(y+d)*W+x]=230;}return {width:W,height:H,data};};
+ const tracker=new PatchTracker(cross(40,50),40,50),point=tracker.step(cross(44,47));
+ assert.ok(point);assert.equal(point.x,44);assert.equal(point.y,47);
+});
 test('occlusion, ambiguous twins, low detail and large jumps are rejected',()=>{
  assert.equal(new PatchTracker(scene(40,50),40,50).step(scene(40,50,{occluded:true,distractor:true})),null);
  assert.equal(new PatchTracker(scene(40,50),40,50).step(scene(40,50,{distractor:true,twin:true})),null);
  assert.equal(new PatchTracker(scene(40,50),40,50).step(scene(100,50)),null);
  assert.throws(()=>new PatchTracker({width:W,height:H,data:new Uint8Array(W*H)},40,50),/detail/);
+});
+test('the surrounding bar-end outline survives motion blur and returns to sharp detail',()=>{
+ const plate=(x,y,blur=0)=>{
+  const data=new Uint8Array(W*H).fill(30);
+  for(let dy=-12;dy<=12;dy++)for(let dx=-12;dx<=12;dx++)if(dx*dx+dy*dy<=144)data[(y+dy)*W+x+dx]=130+((dx*dx*11+dy*dy*7+dx*dy*19+1000)%120);
+  if(blur){const original=data.slice();for(let yy=blur;yy<H-blur;yy++)for(let xx=0;xx<W;xx++){let sum=0;for(let d=-blur;d<=blur;d++)sum+=original[(yy+d)*W+xx];data[yy*W+xx]=Math.round(sum/(blur*2+1));}}
+  return {width:W,height:H,data};
+ };
+ const tracker=new PatchTracker(plate(40,60),40,60);
+ for(let i=1;i<=12;i++) {
+  const x=40+i*2,y=60-i,point=tracker.step(plate(x,y,i<=8?Math.min(3,Math.ceil(i/3)):0));
+  assert.ok(point,`blurred frame ${i}`);assert.ok(Math.abs(point.x-x)<=1 && Math.abs(point.y-y)<=1);
+ }
 });
 test('forward seeks visit every frame; backward seeks retain the full computed path; reselect starts a new segment',async()=>{
  const frames=Array.from({length:12},(_,i)=>({time:i/15,image:scene(40+i,50-i)}));const visited=[];
@@ -84,6 +102,6 @@ test('a cancelled asynchronous seek cannot add stale tracking results',async()=>
  const path=new BarPath(async f=>{if(delayed)await new Promise(r=>release=r);return f.image;});
  const a={time:0,image:scene(40,50)},b={time:.1,image:scene(42,50)};
  await path.select(a,40/W,50/H);delayed=true;
- const work=path.through([a,b],.1);path.clear();release();await work;
+ const work=path.through([a,b],.1);while(!release)await new Promise(r=>setTimeout(r,0));path.clear();release();await work;
  assert.equal(path.points.length,0);assert.equal(path.tracker,null);
 });

@@ -57,7 +57,7 @@ try {
   await page.locator('#zoomReset').click();await page.locator('#clearTrack').click();
   await page.locator('#fsScrub').press('Home');await page.waitForTimeout(100);
   // Simulate a slower phone decoder to reproduce the old disappearing-dot bug.
-  await page.evaluate(async()=>{const {GalleryClip}=await import('/src/gallery.js');const read=GalleryClip.prototype.read;GalleryClip.prototype.read=async function(...args){await new Promise(r=>setTimeout(r,220));return read.apply(this,args);};});
+  await page.evaluate(async()=>{const url=performance.getEntriesByType('resource').find(e=>new URL(e.name).pathname.endsWith('/src/gallery.js')).name;const {GalleryClip}=await import(url);const read=GalleryClip.prototype.read;GalleryClip.prototype.sampleSink=async()=>null;GalleryClip.prototype.read=async function(...args){await new Promise(r=>setTimeout(r,220));return read.apply(this,args);};});
   await page.locator('#trackBar').click();const slowPoint=await sourcePoint(100,170);await page.touchscreen.tap(slowPoint.x,slowPoint.y);
   await page.waitForFunction(()=>document.getElementById('trackBar').textContent==='Reselect bar');
   await page.locator('#fsPause').click();
