@@ -20,16 +20,18 @@ for attempt in range(18):
     try:
         version = json.loads(fetch('version.json'))
         assert version['commit'] == COMMIT, version
-        assert version['release'] == 'tracker-scrub11', version
+        assert version['release'] == 'civr12', version
         html = fetch('').decode()
-        assert './video-replay-v5.webmanifest' in html
+        assert './video-replay-v6.webmanifest' in html
         assert '<title>Video Replay</title>' in html
         assert 'content="Video Replay"' in html
-        assert html.count('./icons/ci-vr-v4-192.png') == 2, 'favicon and Apple touch icon'
-        for name in ['video-replay-v5.webmanifest', 'replay-vr-v4.webmanifest', 'replay-vr.webmanifest', 'manifest.webmanifest']:
+        assert html.count('./icons/ci-vr-v5-192.png') == 2, 'favicon and Apple touch icon'
+        assert fetch('branding/civr-logo-v1.jpg') == (ROOT/'public/branding/civr-logo-v1.jpg').read_bytes(), 'exact supplied CIVR artwork'
+        for name in ['video-replay-v6.webmanifest', 'video-replay-v5.webmanifest', 'replay-vr-v4.webmanifest', 'replay-vr-v3.webmanifest', 'replay-vr.webmanifest', 'manifest.webmanifest']:
             manifest = json.loads(fetch(name))
             assert manifest == json.loads((ROOT / 'public' / name).read_text())
-            assert manifest['start_url'] == './?v=video-replay5'
+            assert manifest['start_url'] == './?v=civr12'
+            assert manifest['id'] == './ci-vr'
             assert manifest['name'] == manifest['short_name'] == 'Video Replay'
             for icon in manifest['icons']:
                 data = fetch(icon['src'])
@@ -37,7 +39,7 @@ for attempt in range(18):
         scripts = re.findall(r'<script[^>]*src="([^"]+)"', html)
         assert scripts
         js = fetch(scripts[0].removeprefix('./')).decode()
-        assert all(text in js for text in ['Running Camera', 'Record &amp; Review', 'livePreview', 'ci-vr-v4-192.png', 'fsScrub', 'trackBar', 'Clear path', 'screenStart', 'Turn camera on', 'Analyze gallery video', 'galleryFile', 'replayViewport', 'zoomIn', 'zoomReset', 'last confirmed dot', 'prevFrame', 'nextFrame', 'Fine scrub', 'tvView', 'Whole video preserved', 'trackingFrames', 'pendingSeek', 'Pull down while dragging'])
+        assert all(text in js for text in ['Running Camera', 'Record &amp; Review', 'livePreview', 'ci-vr-v5-192.png', 'civr-logo-v1.jpg', 'emptyMessage', 'fsScrub', 'trackBar', 'Clear path', 'screenStart', 'Turn camera on', 'Analyze gallery video', 'galleryFile', 'replayViewport', 'zoomIn', 'zoomReset', 'last confirmed dot', 'prevFrame', 'nextFrame', 'Fine scrub', 'tvView', 'Whole video preserved', 'trackingFrames', 'pendingSeek', 'Pull down while dragging'])
         # Also verify the lazy local frame-indexing bundle and CSS, not just the
         # entry bundle referenced by the HTML.
         chunks = set(re.findall(r'import\("\./([^"/]+\.js)"\)', js))

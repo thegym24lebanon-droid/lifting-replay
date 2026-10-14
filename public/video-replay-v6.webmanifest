@@ -1,0 +1,31 @@
+{
+  "id": "./ci-vr",
+  "name": "Video Replay",
+  "short_name": "Video Replay",
+  "description": "Delayed camera replay for lifting practice.",
+  "start_url": "./?v=civr12",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b0f12",
+  "theme_color": "#0b0f12",
+  "icons": [
+    {
+      "src": "icons/ci-vr-v5-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/ci-vr-v5-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/ci-vr-v5-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

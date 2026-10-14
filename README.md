@@ -4,7 +4,7 @@ A browser camera and replay app for a phone mirrored to a TV. No account, backen
 
 ## Use
 
-Open https://thegym24lebanon-droid.github.io/lifting-replay/?v=tracker-scrub11 in Chrome.
+Open https://thegym24lebanon-droid.github.io/lifting-replay/?v=civr12 in Chrome.
 
 - **Running Camera:** choose a 5–30 second delay and Start camera. Capture continues until Stop, except a browser/camera interruption. Live framing fills the viewer while buffering; then a labeled live inset accompanies the large delayed replay. Pause, scrub, or slow down for review; Return to delay resumes following the selected delay. Stop retains the rolling footage.
 - **Record & Review:** manually start and stop. The full viewer shows live framing during recording. The selected 5–30 second countdown starts at Stop, then plays from the beginning. Playback, scrub, ±5 seconds, and speed are immediately available after Stop; using any of them cancels auto-replay. Record next clears the previous clip only after the new camera session starts successfully. Changing mode also cancels a pending countdown while retaining the stopped footage.
@@ -36,7 +36,7 @@ TV view maximizes the phone viewport, but a web app cannot set the Miracast rece
 
 ## Branding and caching
 
-The v3 icons are resized crops of the existing public CI/VR artwork; the metallic mark and cyan badge are preserved. Versioned manifest, favicon, Apple touch icon, header icon, and launch URL avoid stale v2 asset URLs. A separate Android `maskable` icon avoids the extra inset applied to standard icons. Its artwork is tuned for rounded-square launchers; simulated rounded-square and full-circle masks preserve the badge. Other aggressive masks may crop outside the standard safe zone. Actual shortcut rendering varies by launcher. The manifest identity stays `./ci-vr`; the separate CI program is untouched. There is no service worker or offline cache; internet is required at launch.
+The supplied CIVR artwork, including **Real. Intelligent. Coaching.**, appears unchanged on the opening screen as `public/branding/civr-logo-v1.jpg`. It clears when camera capture or gallery review starts. The v5 icon URLs reuse the matching metallic CI/VR mark from the existing icons; no logo artwork was redrawn. The v6 manifest, refreshed favicon/Apple touch/header icon URLs, and `civr12` launch URL avoid stale branding links. All legacy manifests point to the current launch URL and icons. A separate Android `maskable` icon avoids the extra inset applied to standard icons. Its artwork is tuned for rounded-square launchers; simulated rounded-square and full-circle masks preserve the badge. Other aggressive masks may crop outside the standard safe zone. Actual shortcut rendering varies by launcher. The manifest identity stays `./ci-vr`; the separate CI program is untouched. There is no service worker or offline cache; internet is required at launch.
 
 The private reference screenshot is not a repository asset and must not be committed or published.
 
