@@ -4,7 +4,7 @@ A browser camera and replay app for a phone mirrored to a TV. No account, backen
 
 ## Use
 
-Open https://thegym24lebanon-droid.github.io/lifting-replay/?v=civr13 in Chrome.
+Open https://thegym24lebanon-droid.github.io/lifting-replay/?v=civr14 in Chrome.
 
 - **Running Camera:** choose a 5–30 second delay and Start camera. Capture continues until Stop, except a browser/camera interruption. Live framing fills the viewer while buffering; then a labeled live inset accompanies the large delayed replay. Pause, scrub, or slow down for review; Return to delay resumes following the selected delay. Stop retains the rolling footage.
 - **Record & Review:** manually start and stop. The full viewer shows live framing during recording. The selected 5–30 second countdown starts at Stop, then plays from the beginning. Playback, scrub, ±5 seconds, and speed are immediately available after Stop; using any of them cancels auto-replay. Record next clears the previous clip only after the new camera session starts successfully. Changing mode also cancels a pending countdown while retaining the stopped footage.
@@ -36,7 +36,7 @@ TV view maximizes the phone viewport, but a web app cannot set the Miracast rece
 
 ## Branding and caching
 
-The complete supplied CIVR artwork, including **Real. Intelligent. Coaching.**, appears on the opening screen and in the home-screen and Android launch icons. The v6 PNG icons contain the entire logo and tagline; the maskable version adds black padding to keep both inside Android’s circular safe area. The opening artwork clears when camera capture or gallery review starts. The v7 manifest and `civr13` launch URL refresh the branding references. All legacy manifests point to the same full icons and launch URL. The manifest identity stays `./ci-vr`. Actual shortcut rendering and installed-icon refresh timing depend on Android and the launcher. There is no service worker or offline cache; internet is required at launch.
+The full CIVR artwork, including **Real. Intelligent. Coaching.**, appears on the opening screen and in the home-screen and Android launch icons. Its blue accents use the deeper royal blue of the CIX X in the supplied reference screenshot. The v7 PNG icons contain the entire logo and tagline; the maskable version adds black padding to keep both inside Android’s circular safe area. The opening artwork clears when camera capture or gallery review starts. The v8 manifest and `civr14` launch URL refresh the branding references. All legacy manifests point to the same full icons and launch URL. The manifest identity stays `./ci-vr`. Actual shortcut rendering and installed-icon refresh timing depend on Android and the launcher. There is no service worker or offline cache; internet is required at launch.
 
 The private reference screenshot is not a repository asset and must not be committed or published.
 
