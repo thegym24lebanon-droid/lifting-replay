@@ -36,3 +36,20 @@ body.tv-view-open{overflow:hidden}.viewer.tv-mode{position:fixed;inset:0;width:1
 .viewer:is(:fullscreen,.tv-mode) #empty{padding-bottom:224px}.viewer.tv-controls-hidden #empty{padding:24px 16px}
 @media(max-width:600px){header{flex-wrap:wrap}.header-actions{width:100%}.header-actions #install{flex:1}}
 #installHelp .install-icon{display:block;width:120px;height:120px;object-fit:contain;margin:8px auto 16px}
+
+/* Keep a dedicated slim scrub rail outside the picture. The hit target is
+   finger-sized, but its visible track stays small. No native video overlay. */
+.viewer.has-footage #replayViewport{bottom:48px}
+.viewer.has-footage .fullscreen-transport{display:block;position:absolute;left:0;right:0;bottom:0;padding:0 12px;background:#0b0f12;border-radius:0;z-index:5}
+.viewer.has-footage .fullscreen-transport input{display:block;height:44px;min-height:44px;margin:2px 0;touch-action:none}
+.viewer.has-footage.tv-controls-hidden .fullscreen-transport{visibility:visible;pointer-events:auto}
+.viewer.has-footage.tv-controls-hidden .fullscreen-transport>:not(input){display:none}
+.viewer.has-footage.tv-controls-hidden #showTVControls{display:block;position:absolute;right:8px;top:8px;bottom:auto;min-height:32px;padding:6px 10px;font-size:11px;z-index:6}
+.viewer.has-footage.scrubbing .viewer-top,.viewer.has-footage.scrubbing .viewer-bottom,.viewer.has-footage.scrubbing .bar-tools,.viewer.has-footage.scrubbing #showTVControls,.viewer.has-footage.scrubbing #tvHint,.viewer.has-footage.scrubbing #livePreview:not([hidden]){visibility:hidden;pointer-events:none}
+.viewer.camera-idle .viewer-top,.viewer.camera-idle .viewer-bottom{visibility:visible;pointer-events:auto}
+.viewer.camera-idle .screen-actions,.viewer.camera-idle .display-actions{pointer-events:auto}
+.viewer.camera-idle #showTVControls{display:none}
+.viewer #hideTVControls{display:block}
+.viewer.has-footage:not(:fullscreen):not(.tv-mode) .fullscreen-transport .transport-row,.viewer.has-footage:not(:fullscreen):not(.tv-mode) .fullscreen-transport .frame-controls,.viewer.has-footage:not(:fullscreen):not(.tv-mode) .fullscreen-transport .timeline-title{display:none}
+.viewer.has-footage.scrubbing .fullscreen-transport{visibility:visible;pointer-events:auto}
+.viewer.has-footage.scrubbing .fullscreen-transport>:not(input){display:none}

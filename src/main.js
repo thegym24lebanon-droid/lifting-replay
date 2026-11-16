@@ -41,7 +41,7 @@ function showTVControls(restart = true) {
   if (restart && tvMode && !paused && !selectingBar && !trackingHold) tvTimer = setTimeout(() => hideTVControls('auto'), 4000);
 }
 function hideTVControls(reason) {
-  if (!tvMode || selectingBar || trackingHold || (reason === 'auto' && paused)) return;
+  if (selectingBar || trackingHold || (reason === 'auto' && paused)) return;
   clearTimeout(tvTimer); tvHiddenBy = reason; $('viewer').classList.add('tv-controls-hidden');
 }
 function leaveTVView() {
@@ -56,7 +56,10 @@ tvButton.onclick = async () => {
   try { if (screen.orientation?.lock) { await screen.orientation.lock('landscape'); if (tvMode) tvOrientationOwned = true; else screen.orientation.unlock?.(); } } catch {}
 };
 hideButton.onclick = () => hideTVControls('manual'); showButton.onclick = () => showTVControls();
-$('viewer').addEventListener('pointerdown', () => { if (tvMode) showTVControls(); }, { capture: true });
+// Scrubbing must never open the control board. Use the explicit Controls button.
+$('viewer').classList.add('tv-controls-hidden'); tvHiddenBy = 'manual';
+showButton.textContent = 'Controls';
+hideButton.textContent = 'Hide controls';
 for (const [range, prefix] of [['scrub',''],['fsScrub','fs']]) {
   $(range).step = 'any';
   const controls = document.createElement('div'); controls.className = 'frame-controls';
@@ -151,6 +154,7 @@ function updateFrameControls() {
 function controls(enabled) { for (const id of ['back','pause','forward','scrub','speed','fsScrub','fsPause','fsSpeed','trackBar','zoomIn','zoomOut','zoomReset']) $(id).disabled = !enabled; viewport.classList.toggle('zoom-enabled', enabled); $('live').disabled = $('fsLive').disabled = !enabled || !running || mode !== 'running'; }
 function layout(warming = false) {
   $('viewer').classList.toggle('camera-idle', !running && !hasFootage());
+  $('viewer').classList.toggle('has-footage', hasFootage());
   $('viewer').classList.toggle('placing-bar', selectingBar);
   $('livePreview').hidden = !running || selectingBar || zoom.state.scale>1;
   $('viewer').classList.toggle('live-main', running && (mode === 'record' || warming));
@@ -406,15 +410,16 @@ for (const id of ['scrub','fsScrub']) {
     if (scrubDrag && scrubDrag.id !== event.pointerId) return;
     const times = frameTimes();
     scrubDrag = { id:event.pointerId, element, first:firstTime(), last:lastTime(), times, jog:new FrameJog(frameIndex(times,playhead),times.length,event.clientX,event.clientY), fine:settings.fineScrub };
-    element.focus(); element.setPointerCapture(event.pointerId); dragScrub(event);
+    element.focus(); element.setPointerCapture(event.pointerId);
+    clearTimeout(tvTimer); $('viewer').classList.add('scrubbing'); hideTVControls('manual'); dragScrub(event);
   };
   element.onpointermove = dragScrub;
   element.onpointerup = event => {
     if (scrubDrag?.id !== event.pointerId) return;
-    dragScrub(event); scrubDrag = null;
+    dragScrub(event); scrubDrag = null; $('viewer').classList.remove('scrubbing');
     if (element.hasPointerCapture(event.pointerId)) element.releasePointerCapture(event.pointerId);
   };
-  element.onpointercancel = element.onlostpointercapture = () => { scrubDrag = null; };
+  element.onpointercancel = element.onlostpointercapture = () => { scrubDrag = null; $('viewer').classList.remove('scrubbing'); };
   element.onkeydown = event => {
     const times = frameTimes();
     if (!times.length) return;
